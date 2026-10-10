@@ -2,8 +2,6 @@
 <html lang="en">
 
 <head>
-    <!-- Razorpay Checkout JS Library -->
-    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QuickScan POS - Public Self-Checkout</title>
@@ -145,7 +143,7 @@
                     <i class="fa-solid fa-user-check"></i>
                 </div>
                 <h2 class="text-2xl font-black text-slate-900 tracking-tight">Customer Verification</h2>
-                <p class="text-xs text-slate-500 font-medium mt-1">Scan your Loyalty QR or Register to earn rewards</p>
+                <p class="text-xs text-slate-500 font-medium mt-1">Scan your Loyalty QR or Register to continue</p>
             </div>
 
             <!-- Tab Switcher -->
@@ -167,11 +165,6 @@
                     <div id="auth-qr-reader" class="w-full h-full rounded-xl overflow-hidden"></div>
                 </div>
                 <p class="text-[11px] text-slate-400 font-medium">Show your Personal Customer QR Code to camera</p>
-
-                <button onclick="skipAuthAndContinue()"
-                    class="text-xs font-bold text-slate-500 hover:text-blue-600 transition underline block mx-auto">
-                    Continue as Guest Customer
-                </button>
             </div>
 
             <!-- TAB 2: REGISTER NEW CUSTOMER -->
@@ -232,7 +225,7 @@
             <div id="header-user-badge"
                 class="flex items-center gap-2 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-full text-xs font-bold">
                 <i class="fa-solid fa-circle-user text-blue-600 text-base"></i>
-                <span id="user-name-display" class="text-slate-800">Guest</span>
+                <span id="user-name-display" class="text-slate-800">User</span>
                 <span id="user-points-badge"
                     class="bg-blue-600 text-white px-2 py-0.5 rounded-full text-[10px] font-black">0 Pts</span>
             </div>
@@ -305,23 +298,14 @@
                 </div>
             </div>
 
-            <div class="w-full max-w-md bg-white rounded-2xl p-5 shadow-lg border border-slate-200 space-y-4">
-                <div class="flex items-center justify-between">
-                    <span class="text-xs font-extrabold uppercase tracking-wider text-slate-500">⚡ Tap to Test Instant
-                        Scan:</span>
-                    <span
-                        class="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-md font-mono font-bold">Demo
-                        Mode</span>
-                </div>
-
-                <div id="quick-demo-grid" class="grid grid-cols-2 gap-2.5"></div>
-
-                <div class="pt-2 border-t border-slate-100 flex gap-2">
-                    <input type="text" id="manual-code-input" placeholder="Enter barcode (e.g. 8901)"
+            <div class="w-full max-w-md bg-white rounded-2xl p-5 shadow-lg border border-slate-200 space-y-3">
+                <p class="text-xs font-extrabold uppercase tracking-wider text-slate-500">Manual Barcode Entry:</p>
+                <div class="flex gap-2">
+                    <input type="text" id="manual-code-input" placeholder="Enter barcode number"
                         class="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition">
                     <button onclick="handleManualSubmit()"
                         class="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow-sm">
-                        Scan
+                        Submit
                     </button>
                 </div>
             </div>
@@ -475,46 +459,40 @@
                 </div>
             </div>
 
+            <!-- STANDARD UPI QR PAYMENT SECTION -->
             <div class="bg-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-200 text-center space-y-6">
                 <div>
                     <span
                         class="bg-blue-50 text-blue-700 border border-blue-200 text-xs font-black px-3.5 py-1.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1.5">
-                        <i class="fa-solid fa-shield-halved text-blue-600"></i> Razorpay Secure Payment
+                        <i class="fa-solid fa-qrcode text-blue-600"></i> UPI Instant Payment
                     </span>
-                    <h3 class="text-2xl font-black text-slate-900 mt-3">Select Payment Method</h3>
-                    <p class="text-xs text-slate-500 font-medium">Pay via UPI QR, GPay, PhonePe, Cards or Netbanking</p>
+                    <h3 class="text-2xl font-black text-slate-900 mt-3">Scan & Pay via Any UPI App</h3>
+                    <p class="text-xs text-slate-500 font-medium">Pay using Paytm, Google Pay, PhonePe, or BHIM</p>
                 </div>
 
-                <button onclick="startRazorpayPayment()"
-                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 px-6 rounded-2xl shadow-xl shadow-blue-600/20 transition flex items-center justify-center gap-3 active:scale-95 text-base">
-                    <i class="fa-solid fa-credit-card text-xl"></i>
-                    <span>Pay Now with Razorpay</span>
-                </button>
-            </div>
-
-            <div
-                class="flex flex-col items-center justify-center bg-slate-50 p-6 rounded-2xl border border-slate-200 max-w-sm mx-auto shadow-inner">
-                <div id="qrcode-canvas" class="p-3 bg-white rounded-2xl shadow-md border border-slate-200"></div>
                 <div
-                    class="mt-4 flex items-center gap-2 text-xs text-slate-600 font-mono bg-white px-3.5 py-1.5 rounded-full border border-slate-300 shadow-sm">
-                    <i class="fa-solid fa-wallet text-blue-600"></i>
-                    <span>Merchant VPA: <strong class="text-slate-900">972920078@ptyes (Tanmay Tuli)</strong></span>
+                    class="flex flex-col items-center justify-center bg-slate-50 p-6 rounded-2xl border border-slate-200 max-w-sm mx-auto shadow-inner">
+                    <div id="qrcode-canvas" class="p-3 bg-white rounded-2xl shadow-md border border-slate-200"></div>
+                    <div
+                        class="mt-4 flex items-center gap-2 text-xs text-slate-600 font-mono bg-white px-3.5 py-1.5 rounded-full border border-slate-300 shadow-sm">
+                        <i class="fa-solid fa-wallet text-blue-600"></i>
+                        <span>Merchant VPA: <strong class="text-slate-900">storeadmin@upi</strong></span>
+                    </div>
                 </div>
-            </div>
 
-            <div class="flex justify-center items-center gap-4 text-slate-500 text-xs font-bold">
-                <span class="flex items-center gap-1"><i class="fa-brands fa-google-pay text-base text-blue-600"></i>
-                    GPay</span>
-                <span class="flex items-center gap-1"><i class="fa-solid fa-mobile-screen-button text-purple-600"></i>
-                    PhonePe</span>
-                <span class="flex items-center gap-1"><i class="fa-solid fa-wallet text-sky-500"></i> Paytm</span>
-            </div>
+                <div class="flex justify-center items-center gap-4 text-slate-500 text-xs font-bold">
+                    <span class="flex items-center gap-1"><i
+                            class="fa-brands fa-google-pay text-base text-blue-600"></i> GPay</span>
+                    <span class="flex items-center gap-1"><i
+                            class="fa-solid fa-mobile-screen-button text-purple-600"></i> PhonePe</span>
+                    <span class="flex items-center gap-1"><i class="fa-solid fa-wallet text-sky-500"></i> Paytm</span>
+                </div>
 
-            <button onclick="simulatePaymentSuccess()"
-                class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 px-6 rounded-2xl shadow-xl shadow-emerald-600/20 transition flex items-center justify-center gap-2 active:scale-95 text-base">
-                <i class="fa-solid fa-circle-check text-lg"></i>
-                <span>Simulate Successful Payment</span>
-            </button>
+                <button onclick="simulatePaymentSuccess()"
+                    class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 px-6 rounded-2xl shadow-xl shadow-emerald-600/20 transition flex items-center justify-center gap-2 active:scale-95 text-base">
+                    <i class="fa-solid fa-circle-check text-lg"></i>
+                    <span>Simulate Successful Payment</span>
+                </button>
             </div>
 
         </section>
@@ -554,7 +532,7 @@
                 <div class="flex justify-between"><span class="text-slate-500">Amount Paid:</span><span
                         id="modal-total-paid" class="font-bold text-slate-900 font-mono">₹0</span></div>
                 <div class="flex justify-between"><span class="text-slate-500">Customer:</span><span
-                        id="modal-user-name" class="font-bold text-slate-900">Guest</span></div>
+                        id="modal-user-name" class="font-bold text-slate-900">User</span></div>
                 <div class="flex justify-between"><span class="text-slate-500">Status:</span><span
                         class="font-bold text-emerald-600">SUCCESSFUL <i class="fa-solid fa-circle-check"></i></span>
                 </div>
@@ -563,7 +541,7 @@
             <button onclick="startNewOrder()"
                 class="w-full bg-blue-600 hover:bg-blue-700 text-white font-extrabold py-3.5 px-6 rounded-xl shadow-lg shadow-blue-500/20 transition text-sm active:scale-95 flex items-center justify-center gap-2">
                 <i class="fa-solid fa-rotate-right"></i>
-                <span>Start Next Scan / New Customer Now</span>
+                <span>Start Next Scan / New Customer </span>
             </button>
         </div>
     </div>
@@ -588,7 +566,7 @@
         let cart = [];
         let currentScannedItem = null;
         let html5QrCode = null;
-        let authHtml5QrCode = null; // Direct Core Scanner for Login Modal
+        let authHtml5QrCode = null;
         let qrCodeInstance = null;
         let autoResetInterval = null;
         let countdownSeconds = 10;
@@ -596,20 +574,15 @@
         let isCameraTransitioning = false;
 
         // Current Active User State
-        let activeUser = {
-            name: "Guest",
-            phone: "",
-            loyaltyPoints: 0
-        };
+        let activeUser = null;
 
         // Initialize App
         window.onload = function () {
-            renderDemoShortcuts();
             initAuthCustomerScanner();
             updateCartSummaryUI();
         };
 
-        // ================= AUTHENTICATION MODAL LOGIC (FIXED CAMERA) =================
+        // ================= AUTHENTICATION MODAL LOGIC =================
         function switchAuthTab(tab) {
             const scanBtn = document.getElementById('auth-tab-scan');
             const regBtn = document.getElementById('auth-tab-reg');
@@ -704,7 +677,7 @@
             activeUser = {
                 name: name,
                 phone: phone,
-                loyaltyPoints: 50 // Welcome bonus
+                loyaltyPoints: 50
             };
 
             const userQrJson = JSON.stringify(activeUser);
@@ -720,12 +693,11 @@
             document.getElementById('reg-qr-output').classList.remove('hidden');
         }
 
-        async function skipAuthAndContinue() {
-            await stopAuthCustomerScanner();
-            completeAuthAndStart();
-        }
-
         async function completeAuthAndStart() {
+            if (!activeUser) {
+                showToast("Authentication required!", "warning");
+                return;
+            }
             await stopAuthCustomerScanner();
             document.getElementById('auth-modal').classList.add('hidden');
             document.getElementById('user-name-display').textContent = activeUser.name;
@@ -734,20 +706,6 @@
         }
 
         // ================= PRODUCT SCANNER & RENDERERS =================
-        function renderDemoShortcuts() {
-            const grid = document.getElementById('quick-demo-grid');
-            grid.innerHTML = productsDatabase.map(p => `
-                <button onclick="handleProductScanned('${p.barcode}')" 
-                    class="bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-blue-500 p-2.5 rounded-xl transition text-left flex items-center gap-2.5 group shadow-sm">
-                    <img src="${p.image}" class="w-10 h-10 object-contain rounded-lg bg-white p-0.5 shrink-0 border border-slate-200">
-                    <div class="truncate">
-                        <p class="font-bold text-xs text-slate-800 truncate group-hover:text-blue-600">${p.brand}</p>
-                        <p class="text-blue-600 font-extrabold text-xs">₹${p.price}</p>
-                    </div>
-                </button>
-            `).join('');
-        }
-
         async function startCameraScanner() {
             if (isCameraTransitioning) return;
             const overlay = document.getElementById('camera-loading');
@@ -787,7 +745,7 @@
                     overlay.innerHTML = `
                         <i class="fa-solid fa-video-slash text-3xl text-amber-400"></i>
                         <p class="text-sm font-bold text-slate-200">Camera Permission Required</p>
-                        <p class="text-xs text-slate-400">Use shortcut demo buttons or enter barcode below</p>
+                        <p class="text-xs text-slate-400">Enter barcode number manually below</p>
                     `;
                 }
             } finally {
@@ -948,11 +906,8 @@
             const container = document.getElementById('cart-items-container');
             const totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
             const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-
-            // Loyalty points deduction removed - Direct full subtotal
             const grandTotal = subtotal;
 
-            // Discount row ko always hide rakho
             document.getElementById('loyalty-discount-row').classList.add('hidden');
 
             document.getElementById('bill-total-items-badge').textContent = `${totalItems} Items`;
@@ -961,92 +916,92 @@
 
             if (cart.length === 0) {
                 container.innerHTML = `
-            <div class="text-center py-12 space-y-3">
-                <i class="fa-solid fa-basket-shopping text-5xl text-slate-300"></i>
-                <p class="text-base font-bold text-slate-500">Your cart is currently empty</p>
-                <button onclick="goToScreen(1); startCameraScanner();" class="text-xs text-blue-600 font-bold underline hover:text-blue-800">
-                    + Scan Products Now
-                </button>
-            </div>
-        `;
+                    <div class="text-center py-12 space-y-3">
+                        <i class="fa-solid fa-basket-shopping text-5xl text-slate-300"></i>
+                        <p class="text-base font-bold text-slate-500">Your cart is currently empty</p>
+                        <button onclick="goToScreen(1); startCameraScanner();" class="text-xs text-blue-600 font-bold underline hover:text-blue-800">
+                            + Scan Products Now
+                        </button>
+                    </div>
+                `;
                 generateUPIQRCode(0);
                 return;
             }
 
             container.innerHTML = cart.map(item => `
-        <div class="flex flex-col sm:flex-row items-center justify-between gap-4 py-3">
-            <div class="flex items-center gap-3.5 w-full sm:w-auto">
-                <img src="${item.image}" alt="${item.title}" class="w-14 h-14 object-contain rounded-xl bg-slate-50 border border-slate-200 p-1 shrink-0">
-                <div>
-                    <span class="text-[10px] font-black text-blue-600 uppercase tracking-wider">${item.brand}</span>
-                    <h4 class="text-sm font-extrabold text-slate-900 leading-tight">${item.title}</h4>
-                    <p class="text-xs text-slate-500 font-mono mt-0.5">Rate: ₹${item.price}</p>
-                </div>
-            </div>
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-4 py-3">
+                    <div class="flex items-center gap-3.5 w-full sm:w-auto">
+                        <img src="${item.image}" alt="${item.title}" class="w-14 h-14 object-contain rounded-xl bg-slate-50 border border-slate-200 p-1 shrink-0">
+                        <div>
+                            <span class="text-[10px] font-black text-blue-600 uppercase tracking-wider">${item.brand}</span>
+                            <h4 class="text-sm font-extrabold text-slate-900 leading-tight">${item.title}</h4>
+                            <p class="text-xs text-slate-500 font-mono mt-0.5">Rate: ₹${item.price}</p>
+                        </div>
+                    </div>
 
-            <div class="flex items-center justify-between sm:justify-end gap-5 w-full sm:w-auto border-t sm:border-0 border-slate-100 pt-2 sm:pt-0">
-                <div class="flex items-center bg-slate-100 border border-slate-200 rounded-xl overflow-hidden shadow-inner">
-                    <button onclick="adjustCartQty('${item.barcode}', -1)" class="w-8 h-8 bg-white hover:bg-slate-200 text-slate-800 font-black flex items-center justify-center transition">
-                        <i class="fa-solid fa-minus text-xs"></i>
-                    </button>
-                    <span class="w-10 text-center font-black text-sm text-slate-900 font-mono">${item.qty}</span>
-                    <button onclick="adjustCartQty('${item.barcode}', 1)" class="w-8 h-8 bg-white hover:bg-slate-200 text-slate-800 font-black flex items-center justify-center transition">
-                        <i class="fa-solid fa-plus text-xs"></i>
-                    </button>
-                </div>
+                    <div class="flex items-center justify-between sm:justify-end gap-5 w-full sm:w-auto border-t sm:border-0 border-slate-100 pt-2 sm:pt-0">
+                        <div class="flex items-center bg-slate-100 border border-slate-200 rounded-xl overflow-hidden shadow-inner">
+                            <button onclick="adjustCartQty('${item.barcode}', -1)" class="w-8 h-8 bg-white hover:bg-slate-200 text-slate-800 font-black flex items-center justify-center transition">
+                                <i class="fa-solid fa-minus text-xs"></i>
+                            </button>
+                            <span class="w-10 text-center font-black text-sm text-slate-900 font-mono">${item.qty}</span>
+                            <button onclick="adjustCartQty('${item.barcode}', 1)" class="w-8 h-8 bg-white hover:bg-slate-200 text-slate-800 font-black flex items-center justify-center transition">
+                                <i class="fa-solid fa-plus text-xs"></i>
+                            </button>
+                        </div>
 
-                <div class="text-right min-w-[70px]">
-                    <span class="text-base font-black text-blue-600 font-mono">
-                        ₹${(item.price * item.qty).toLocaleString('en-IN')}
-                    </span>
-                </div>
+                        <div class="text-right min-w-[70px]">
+                            <span class="text-base font-black text-blue-600 font-mono">
+                                ₹${(item.price * item.qty).toLocaleString('en-IN')}
+                            </span>
+                        </div>
 
-                <button onclick="removeCartItem('${item.barcode}')" class="text-slate-400 hover:text-red-500 transition p-1">
-                    <i class="fa-solid fa-trash-can text-sm"></i>
-                </button>
-            </div>
-        </div>
-    `).join('');
+                        <button onclick="removeCartItem('${item.barcode}')" class="text-slate-400 hover:text-red-500 transition p-1">
+                            <i class="fa-solid fa-trash-can text-sm"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
 
             generateUPIQRCode(grandTotal);
         }
 
-        function startRazorpayPayment() {
-            const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+        function generateUPIQRCode(amount) {
+            const qrContainer = document.getElementById('qrcode-canvas');
+            qrContainer.innerHTML = "";
 
-            if (totalAmount <= 0) {
+            if (amount <= 0) {
+                qrContainer.innerHTML = `<p class="text-xs text-slate-400 p-6 font-semibold">Cart is empty</p>`;
+                return;
+            }
+
+            // Original default store UPI VPA link
+            const upiString = `upi://pay?pa=storeadmin@upi&pn=QuickScan%20Express&am=${amount}&cu=INR`;
+
+            qrCodeInstance = new QRCode(qrContainer, {
+                text: upiString,
+                width: 180,
+                height: 180,
+                colorDark: "#0f172a",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+        }
+
+        function simulatePaymentSuccess() {
+            const grandTotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+            if (grandTotal <= 0) {
                 showToast("Cart is empty!", "warning");
                 return;
             }
 
-            const options = {
-                "key": "rzp_test_YOUR_KEY_HERE", // Yahan apni Razorpay Key ID daalein
-                "amount": totalAmount * 100, // Amount in paise (₹100 = 10000 paise)
-                "currency": "INR",
-                "name": "RAISE",
-                "description": "Smart Self Checkout Kiosk Payment",
-                "image": "https://cdn-icons-png.flaticon.com/512/3081/3081559.png",
-                "handler": function (response) {
-                    console.log("Payment ID:", response.razorpay_payment_id);
-                    showToast("Payment Successful!", "success");
-                    simulatePaymentSuccess(response.razorpay_payment_id);
-                },
-                "prefill": {
-                    "name": activeUser ? activeUser.name : "Guest Customer",
-                    "contact": activeUser ? activeUser.phone : "9999999999"
-                },
-                "theme": {
-                    "color": "#2563eb"
-                }
-            };
+            const randomOrderId = Math.floor(100000 + Math.random() * 900000);
+            document.getElementById('modal-order-id').textContent = randomOrderId;
+            document.getElementById('modal-total-paid').textContent = `₹${grandTotal.toLocaleString('en-IN')}`;
+            document.getElementById('modal-user-name').textContent = activeUser ? activeUser.name : "User";
+            document.getElementById('payment-modal').classList.remove('hidden');
 
-            const rzp = new Razorpay(options);
-
-            rzp.on('payment.failed', function (response) {
-                showToast("Payment Failed: " + response.error.description, "warning");
-            });
-
-            rzp.open();
+            start10SecAutoResetTimer();
         }
 
         function goToScreen(screenNumber) {
@@ -1076,29 +1031,11 @@
             document.getElementById('scanner-bottom-count').textContent = `${totalItems} Items (₹${grandTotal.toLocaleString('en-IN')})`;
         }
 
-        function simulatePaymentSuccess() {
-            const grandTotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-            if (grandTotal <= 0) {
-                showToast("Cart is empty!", "warning");
-                return;
-            }
-
-            const randomOrderId = Math.floor(100000 + Math.random() * 900000);
-            document.getElementById('modal-order-id').textContent = randomOrderId;
-            document.getElementById('modal-total-paid').textContent = `₹${grandTotal.toLocaleString('en-IN')}`;
-            document.getElementById('modal-user-name').textContent = activeUser.name;
-            document.getElementById('payment-modal').classList.remove('hidden');
-
-            start10SecAutoResetTimer();
-        }
-
         function start10SecAutoResetTimer() {
             clearInterval(autoResetInterval);
             countdownSeconds = 10;
 
             const countdownDisplay = document.getElementById('countdown-seconds');
-            const pauseBtn = document.getElementById('pause-timer-btn');
-
             if (countdownDisplay) countdownDisplay.textContent = countdownSeconds;
 
             autoResetInterval = setInterval(() => {
