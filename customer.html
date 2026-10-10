@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>RAISE Customer Companion</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icon Library -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- QRCode.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #f8fafc;
+            color: #0f172a;
+        }
+
+        #user-qrcode-canvas img,
+        #user-qrcode-canvas canvas {
+            margin: 0 auto;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.2);
+        }
+    </style>
+</head>
+
+<body
+    class="min-h-screen flex flex-col antialiased bg-slate-100 max-w-md mx-auto relative shadow-2xl border-x border-slate-200 selection:bg-blue-600 selection:text-white">
+
+    <!-- ================= AUTHENTICATION SCREEN (LOGIN / REGISTER TABS) ================= -->
+    <section id="auth-screen" class="min-h-screen flex flex-col justify-between p-6 bg-white z-50">
+        <div class="space-y-6 my-auto">
+            <div class="text-center space-y-2">
+                <div
+                    class="w-16 h-16 bg-blue-600 text-white rounded-3xl flex items-center justify-center mx-auto text-2xl font-black shadow-xl shadow-blue-500/30">
+                    <i class="fa-solid fa-cart-shopping"></i>
+                </div>
+                <h1 class="text-2xl font-black text-slate-900 tracking-tight">RAISE <span
+                        class="text-blue-600">Pass</span></h1>
+                <p class="text-xs text-slate-500 font-medium">Smart Trolley Kiosk & Digital Wallet Companion</p>
+            </div>
+
+            <!-- TAB SWITCHER: LOGIN VS REGISTER -->
+            <div class="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+                <button id="auth-tab-btn-login" onclick="switchAuthMode('login')"
+                    class="flex-1 py-2.5 text-xs font-black rounded-xl bg-white text-blue-600 shadow-sm transition">
+                    Login Account
+                </button>
+                <button id="auth-tab-btn-reg" onclick="switchAuthMode('reg')"
+                    class="flex-1 py-2.5 text-xs font-bold rounded-xl text-slate-500 transition">
+                    Create New Account
+                </button>
+            </div>
+
+            <!-- FORM 1: LOGIN -->
+            <form id="form-login" onsubmit="handleLoginSubmit(event)" class="space-y-4">
+                <div>
+                    <label class="text-xs font-bold text-slate-700 block mb-1.5 uppercase tracking-wider">Registered
+                        Mobile Number</label>
+                    <input type="tel" id="login-phone" pattern="[0-9]{10}" required placeholder="10-digit mobile number"
+                        class="w-full bg-slate-50 border border-slate-300 rounded-2xl px-4 py-3.5 text-xs text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition font-mono">
+                </div>
+                <button type="submit"
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 px-4 rounded-2xl shadow-xl shadow-blue-600/25 text-xs uppercase tracking-wider transition active:scale-95 flex items-center justify-center gap-2">
+                    <span>Login To My QR</span>
+                    <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </form>
+
+            <!-- FORM 2: CREATE ACCOUNT -->
+            <form id="form-reg" onsubmit="handleRegisterSubmit(event)" class="space-y-4 hidden">
+                <div>
+                    <label class="text-xs font-bold text-slate-700 block mb-1.5 uppercase tracking-wider">Full
+                        Name</label>
+                    <input type="text" id="reg-name" required placeholder="e.g. Rahul Sharma"
+                        class="w-full bg-slate-50 border border-slate-300 rounded-2xl px-4 py-3.5 text-xs text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition">
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-700 block mb-1.5 uppercase tracking-wider">Mobile
+                        Number</label>
+                    <input type="tel" id="reg-phone" pattern="[0-9]{10}" required placeholder="10-digit mobile number"
+                        class="w-full bg-slate-50 border border-slate-300 rounded-2xl px-4 py-3.5 text-xs text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition font-mono">
+                </div>
+                <button type="submit"
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 px-4 rounded-2xl shadow-xl shadow-blue-600/25 text-xs uppercase tracking-wider transition active:scale-95 flex items-center justify-center gap-2">
+                    <span>Create & Activate Account</span>
+                    <i class="fa-solid fa-check"></i>
+                </button>
+            </form>
+        </div>
+
+        <p class="text-[11px] text-center text-slate-400 font-medium">Hardware-Ready MQTT / API Payload Synced</p>
+    </section>
+
+    <!-- ================= MAIN APP DASHBOARD ================= -->
+    <div id="main-app" class="hidden flex-1 flex flex-col pb-24">
+
+        <!-- Top Navigation Header -->
+        <header
+            class="bg-white border-b border-slate-200 px-5 py-4 sticky top-0 z-40 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div
+                    class="w-9 h-9 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-center text-blue-600 font-bold">
+                    <i class="fa-solid fa-qrcode text-base"></i>
+                </div>
+                <div>
+                    <h2 class="text-base font-black text-slate-900 leading-none">RAISE App</h2>
+                    <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-0.5"
+                        id="header-user-name">User</p>
+                </div>
+            </div>
+            <div class="bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full flex items-center gap-1.5">
+                <i class="fa-solid fa-wallet text-emerald-600 text-xs"></i>
+                <span id="header-wallet-balance" class="text-xs font-black text-emerald-700 font-mono">₹500</span>
+            </div>
+        </header>
+
+        <!-- TAB 1: QR CODE PASS SCREEN -->
+        <section id="tab-qr" class="p-5 flex-1 flex flex-col items-center justify-center space-y-5 text-center">
+            <div class="bg-white rounded-3xl p-6 shadow-xl border border-slate-200 w-full space-y-5">
+                <div>
+                    <span
+                        class="bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-black px-3.5 py-1.5 rounded-full uppercase tracking-wider inline-block">
+                        Hardware Scanner Compatible
+                    </span>
+                    <h3 class="text-xl font-black text-slate-900 mt-3">My Trolley Pass</h3>
+                    <p class="text-xs text-slate-500 font-medium mt-1">Show this QR code to the Smart Trolley Camera</p>
+                </div>
+
+                <div id="user-qrcode-canvas"
+                    class="p-4 bg-slate-50 border border-slate-200 rounded-2xl inline-block shadow-inner"></div>
+
+                <div
+                    class="bg-blue-50/60 border border-blue-100 rounded-2xl p-3.5 flex items-center justify-around text-left">
+                    <div>
+                        <span class="text-[10px] text-slate-400 font-bold uppercase block">Customer</span>
+                        <span id="tab1-user-name" class="text-xs font-black text-slate-900">User</span>
+                    </div>
+                    <div class="h-6 w-px bg-slate-200"></div>
+                    <div>
+                        <span class="text-[10px] text-slate-400 font-bold uppercase block">Loyalty Balance</span>
+                        <span id="tab1-user-pts" class="text-xs font-black text-blue-600">50 Pts</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 2: WALLET & ITEMIZED BILL RECEIPTS -->
+        <section id="tab-wallet" class="hidden p-5 space-y-5">
+            <!-- Wallet Card -->
+            <div
+                class="bg-gradient-to-br from-slate-900 via-slate-800 to-blue-950 text-white rounded-3xl p-6 shadow-xl space-y-5 border border-slate-700">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <span class="text-[10px] font-extrabold uppercase tracking-widest text-blue-300 block">Pre-paid
+                            Wallet Balance</span>
+                        <h2 id="wallet-balance-display" class="text-3xl font-black font-mono text-white mt-1">₹500.00
+                        </h2>
+                    </div>
+                    <span
+                        class="bg-white/10 backdrop-blur-md border border-white/10 px-3 py-1 rounded-full text-[10px] font-bold text-blue-200">Pre-Paid</span>
+                </div>
+
+                <div class="flex gap-2">
+                    <button onclick="quickAddMoney(100)"
+                        class="flex-1 bg-white/10 hover:bg-white/20 border border-white/10 py-2 rounded-xl text-xs font-bold font-mono transition">
+                        +₹100
+                    </button>
+                    <button onclick="quickAddMoney(200)"
+                        class="flex-1 bg-white/10 hover:bg-white/20 border border-white/10 py-2 rounded-xl text-xs font-bold font-mono transition">
+                        +₹200
+                    </button>
+                    <button onclick="quickAddMoney(500)"
+                        class="flex-1 bg-white/10 hover:bg-white/20 border border-white/10 py-2 rounded-xl text-xs font-bold font-mono transition">
+                        +₹500
+                    </button>
+                </div>
+
+                <button onclick="toggleAddMoneyModal()"
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-extrabold py-3.5 px-4 rounded-2xl text-xs transition shadow-lg shadow-blue-600/30 active:scale-95 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>Custom Recharge Balance</span>
+                </button>
+            </div>
+
+            <!-- Bills & Transactions List -->
+            <div class="bg-white rounded-3xl p-5 shadow-xl border border-slate-200 space-y-4">
+                <h3
+                    class="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center justify-between">
+                    <span class="flex items-center gap-2">
+                        <i class="fa-solid fa-receipt text-blue-600"></i>
+                        <span>Order Receipts & History</span>
+                    </span>
+                    <span class="text-[10px] text-slate-400 font-bold">Tap to View Bill</span>
+                </h3>
+
+                <div id="history-container" class="space-y-3"></div>
+            </div>
+        </section>
+
+        <!-- TAB 3: USER PROFILE SCREEN -->
+        <section id="tab-user" class="hidden p-5 space-y-5">
+            <div class="bg-white rounded-3xl p-6 shadow-xl border border-slate-200 text-center space-y-4">
+                <div
+                    class="w-20 h-20 bg-blue-100 text-blue-600 border-2 border-blue-200 rounded-full flex items-center justify-center mx-auto text-3xl font-black shadow-md">
+                    <i class="fa-solid fa-user"></i>
+                </div>
+                <div>
+                    <h3 id="profile-name" class="text-xl font-black text-slate-900">User Name</h3>
+                    <p id="profile-phone" class="text-xs text-slate-500 font-mono mt-0.5">+91 0000000000</p>
+                </div>
+            </div>
+
+            <div
+                class="bg-white rounded-3xl p-5 shadow-xl border border-slate-200 divide-y divide-slate-100 text-xs font-bold text-slate-700">
+                <div class="py-3 flex justify-between items-center">
+                    <span class="text-slate-500">Loyalty Rewards</span>
+                    <span id="profile-pts" class="text-blue-600 font-black">50 Points</span>
+                </div>
+                <div class="py-3 flex justify-between items-center">
+                    <span class="text-slate-500">Hardware Kiosk Protocol</span>
+                    <span class="text-slate-900 font-mono">v1.4 Encrypted QR</span>
+                </div>
+                <div class="py-3 flex justify-between items-center">
+                    <span class="text-slate-500">Account Status</span>
+                    <span class="text-emerald-600 font-black flex items-center gap-1">
+                        <i class="fa-solid fa-circle-check"></i> Active
+                    </span>
+                </div>
+            </div>
+
+            <button onclick="logoutCustomer()"
+                class="w-full bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-black py-4 px-4 rounded-2xl text-xs transition active:scale-95 flex items-center justify-center gap-2">
+                <i class="fa-solid fa-right-from-bracket"></i>
+                <span>Logout Account</span>
+            </button>
+        </section>
+
+        <!-- ================= BOTTOM NAVIGATION BAR (3 TABS) ================= -->
+        <nav
+            class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur-md border-t border-slate-200 p-2 grid grid-cols-3 z-50 shadow-2xl">
+            <button id="nav-btn-qr" onclick="switchTab('qr')"
+                class="py-2.5 flex flex-col items-center gap-1 text-blue-600 font-black transition">
+                <i class="fa-solid fa-qrcode text-lg"></i>
+                <span class="text-[10px]">QR Pass</span>
+            </button>
+            <button id="nav-btn-wallet" onclick="switchTab('wallet')"
+                class="py-2.5 flex flex-col items-center gap-1 text-slate-400 font-bold transition">
+                <i class="fa-solid fa-wallet text-lg"></i>
+                <span class="text-[10px]">Wallet & Bills</span>
+            </button>
+            <button id="nav-btn-user" onclick="switchTab('user')"
+                class="py-2.5 flex flex-col items-center gap-1 text-slate-400 font-bold transition">
+                <i class="fa-solid fa-user text-lg"></i>
+                <span class="text-[10px]">User</span>
+            </button>
+        </nav>
+
+    </div>
+
+    <!-- ITEMIZED BILL RECEIPT MODAL -->
+    <div id="bill-receipt-modal"
+        class="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-50 hidden flex items-center justify-center p-4 max-w-md mx-auto">
+        <div class="bg-white rounded-3xl w-full p-6 space-y-4 border border-slate-200 shadow-2xl relative">
+            <button onclick="closeBillModal()"
+                class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-lg">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+            <div class="text-center space-y-1 pt-2">
+                <span
+                    class="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black px-3 py-1 rounded-full uppercase">
+                    PAID STORE RECEIPT
+                </span>
+                <h3 class="text-lg font-black text-slate-900 mt-2">RAISE Smart Kiosk</h3>
+                <p id="modal-bill-orderid" class="text-xs text-blue-600 font-mono font-bold">#ORD-0000</p>
+                <p id="modal-bill-date" class="text-[10px] text-slate-400 font-mono">Date</p>
+            </div>
+
+            <div class="border-t border-b border-dashed border-slate-300 py-3 space-y-2">
+                <p class="text-[10px] font-bold uppercase text-slate-400">Items Purchased:</p>
+                <div id="modal-bill-items-list" class="space-y-1.5 text-xs text-slate-800 font-medium"></div>
+            </div>
+
+            <div class="flex justify-between items-center text-sm font-black text-slate-900 pt-1">
+                <span>Total Amount Paid:</span>
+                <span id="modal-bill-amount" class="text-lg text-blue-600 font-mono">₹0.00</span>
+            </div>
+
+            <button onclick="closeBillModal()"
+                class="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold py-3 px-4 rounded-xl text-xs transition">
+                Close Receipt
+            </button>
+        </div>
+    </div>
+
+    <!-- Recharge Modal -->
+    <div id="add-money-modal"
+        class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 hidden flex items-center justify-center p-4 max-w-md mx-auto">
+        <div class="bg-white rounded-3xl w-full p-6 space-y-5 border border-slate-200 shadow-2xl">
+            <div class="flex justify-between items-center">
+                <h3 class="text-base font-black text-slate-900">Topup Wallet</h3>
+                <button onclick="toggleAddMoneyModal()" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="space-y-2">
+                <label class="text-[10px] font-bold text-slate-500 uppercase">Enter Amount (₹)</label>
+                <input type="number" id="custom-wallet-amount" placeholder="e.g. 500" min="10"
+                    class="w-full bg-slate-50 border border-slate-300 rounded-2xl px-4 py-3 text-lg font-black text-slate-900 font-mono focus:outline-none focus:border-blue-600">
+            </div>
+
+            <button onclick="processWalletTopup()"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-extrabold py-3.5 px-4 rounded-2xl shadow-lg shadow-blue-600/30 text-xs transition active:scale-95">
+                Add Balance Now
+            </button>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast"
+        class="fixed bottom-20 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl z-50 transform translate-y-24 opacity-0 transition-all duration-300 flex items-center gap-2.5 text-xs font-bold border border-slate-800">
+        <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
+        <span id="toast-message">Notification</span>
+    </div>
+
+    <script>
+        let userData = null;
+
+        window.onload = function () {
+            loadSavedCustomer();
+        };
+
+        function switchAuthMode(mode) {
+            const loginBtn = document.getElementById('auth-tab-btn-login');
+            const regBtn = document.getElementById('auth-tab-btn-reg');
+            const formLogin = document.getElementById('form-login');
+            const formReg = document.getElementById('form-reg');
+
+            if (mode === 'login') {
+                loginBtn.className = "flex-1 py-2.5 text-xs font-black rounded-xl bg-white text-blue-600 shadow-sm transition";
+                regBtn.className = "flex-1 py-2.5 text-xs font-bold rounded-xl text-slate-500 transition";
+                formLogin.classList.remove('hidden');
+                formReg.classList.add('hidden');
+            } else {
+                regBtn.className = "flex-1 py-2.5 text-xs font-black rounded-xl bg-white text-blue-600 shadow-sm transition";
+                loginBtn.className = "flex-1 py-2.5 text-xs font-bold rounded-xl text-slate-500 transition";
+                formReg.classList.remove('hidden');
+                formLogin.classList.add('hidden');
+            }
+        }
+
+        function loadSavedCustomer() {
+            const saved = localStorage.getItem('raise_customer_profile');
+            if (saved) {
+                userData = JSON.parse(saved);
+                showMainApp();
+            } else {
+                document.getElementById('auth-screen').classList.remove('hidden');
+                document.getElementById('main-app').classList.add('hidden');
+            }
+        }
+
+        function handleLoginSubmit(e) {
+            e.preventDefault();
+            const phone = document.getElementById('login-phone').value.trim();
+
+            userData = {
+                name: "Verified User",
+                phone: phone,
+                loyaltyPoints: 120,
+                walletBalance: 430,
+                history: getSampleBillHistory()
+            };
+
+            saveAndSync();
+            showMainApp();
+            showToast("Welcome back! Account synced.", "success");
+        }
+
+        function handleRegisterSubmit(e) {
+            e.preventDefault();
+            const name = document.getElementById('reg-name').value.trim();
+            const phone = document.getElementById('reg-phone').value.trim();
+
+            userData = {
+                name: name,
+                phone: phone,
+                loyaltyPoints: 50,
+                walletBalance: 500,
+                history: getSampleBillHistory()
+            };
+
+            saveAndSync();
+            showMainApp();
+            showToast("Account Created & Activated!", "success");
+        }
+
+        function getSampleBillHistory() {
+            return [
+                {
+                    type: 'debit',
+                    title: 'Smart Trolley Self Checkout',
+                    orderId: '#ORD-89420',
+                    itemsList: [
+                        { name: 'Lays Potato Chips', qty: 2, price: 20 },
+                        { name: 'Amul Taaza Milk 500ml', qty: 1, price: 30 }
+                    ],
+                    amount: '-₹70.00',
+                    date: 'Today, 01:15 PM'
+                },
+                {
+                    type: 'credit',
+                    title: 'Wallet Topup (GPay)',
+                    orderId: '#TXN-10294',
+                    itemsList: [{ name: 'Pre-paid Wallet Balance Recharge', qty: 1, price: 500 }],
+                    amount: '+₹500.00',
+                    date: 'Today, 10:00 AM'
+                }
+            ];
+        }
+
+        function showMainApp() {
+            document.getElementById('auth-screen').classList.add('hidden');
+            document.getElementById('main-app').classList.remove('hidden');
+
+            document.getElementById('header-user-name').textContent = userData.name;
+            document.getElementById('header-wallet-balance').textContent = `₹${userData.walletBalance.toFixed(0)}`;
+
+            document.getElementById('tab1-user-name').textContent = userData.name;
+            document.getElementById('tab1-user-pts').textContent = `${userData.loyaltyPoints} Pts`;
+
+            document.getElementById('wallet-balance-display').textContent = `₹${userData.walletBalance.toFixed(2)}`;
+
+            document.getElementById('profile-name').textContent = userData.name;
+            document.getElementById('profile-phone').textContent = `+91 ${userData.phone}`;
+            document.getElementById('profile-pts').textContent = `${userData.loyaltyPoints} Points`;
+
+            generateCustomerQR();
+            renderHistory();
+        }
+
+        function switchTab(tab) {
+            document.getElementById('tab-qr').classList.add('hidden');
+            document.getElementById('tab-wallet').classList.add('hidden');
+            document.getElementById('tab-user').classList.add('hidden');
+
+            document.getElementById('nav-btn-qr').className = "py-2.5 flex flex-col items-center gap-1 text-slate-400 font-bold transition";
+            document.getElementById('nav-btn-wallet').className = "py-2.5 flex flex-col items-center gap-1 text-slate-400 font-bold transition";
+            document.getElementById('nav-btn-user').className = "py-2.5 flex flex-col items-center gap-1 text-slate-400 font-bold transition";
+
+            document.getElementById(`tab-${tab}`).classList.remove('hidden');
+            document.getElementById(`nav-btn-${tab}`).className = "py-2.5 flex flex-col items-center gap-1 text-blue-600 font-black transition";
+        }
+
+        function generateCustomerQR() {
+            const canvasContainer = document.getElementById('user-qrcode-canvas');
+            canvasContainer.innerHTML = "";
+
+            // Hardware & Trolley Kiosk ready payload schema
+            const qrPayload = JSON.stringify({
+                name: userData.name,
+                phone: userData.phone,
+                loyaltyPoints: userData.loyaltyPoints,
+                walletBalance: userData.walletBalance
+            });
+
+            new QRCode(canvasContainer, {
+                text: qrPayload,
+                width: 170,
+                height: 170,
+                colorDark: "#0f172a",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+        }
+
+        function renderHistory() {
+            const container = document.getElementById('history-container');
+            if (!userData.history || userData.history.length === 0) {
+                container.innerHTML = `<p class="text-slate-400 py-3 text-center">No bill receipts found</p>`;
+                return;
+            }
+
+            container.innerHTML = userData.history.map((item, idx) => `
+                <div onclick="openBillModal(${idx})" class="bg-slate-50 hover:bg-slate-100 border border-slate-200 p-3.5 rounded-2xl cursor-pointer transition space-y-1.5 active:scale-98">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <span class="text-xs font-black text-slate-900 block">${item.title}</span>
+                            <span class="text-[10px] text-blue-600 font-mono font-bold">${item.orderId}</span>
+                        </div>
+                        <span class="font-mono font-black text-sm ${item.type === 'credit' ? 'text-emerald-600' : 'text-red-600'}">
+                            ${item.amount}
+                        </span>
+                    </div>
+                    <div class="border-t border-slate-200/60 pt-1.5 flex justify-between items-center text-[10px] text-slate-500">
+                        <span>Tap to view detailed bill receipt 📄</span>
+                        <span class="font-mono">${item.date}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function openBillModal(idx) {
+            const item = userData.history[idx];
+            if (!item) return;
+
+            document.getElementById('modal-bill-orderid').textContent = item.orderId;
+            document.getElementById('modal-bill-date').textContent = item.date;
+            document.getElementById('modal-bill-amount').textContent = item.amount;
+
+            const itemsContainer = document.getElementById('modal-bill-items-list');
+            if (item.itemsList && item.itemsList.length > 0) {
+                itemsContainer.innerHTML = item.itemsList.map(i => `
+                    <div class="flex justify-between border-b border-slate-100 pb-1">
+                        <span>${i.name} (x${i.qty})</span>
+                        <span class="font-mono font-bold">₹${i.price * i.qty}</span>
+                    </div>
+                `).join('');
+            } else {
+                itemsContainer.innerHTML = `<p class="text-slate-400">Wallet Transaction Receipt</p>`;
+            }
+
+            document.getElementById('bill-receipt-modal').classList.remove('hidden');
+        }
+
+        function closeBillModal() {
+            document.getElementById('bill-receipt-modal').classList.add('hidden');
+        }
+
+        function quickAddMoney(amount) {
+            userData.walletBalance += amount;
+            const randomTxn = '#TXN-' + Math.floor(10000 + Math.random() * 90000);
+            userData.history.unshift({
+                type: 'credit',
+                title: 'Wallet Topup',
+                orderId: randomTxn,
+                itemsList: [{ name: 'Balance Added via UPI', qty: 1, price: amount }],
+                amount: `+₹${amount.toFixed(2)}`,
+                date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            });
+
+            saveAndSync();
+            showMainApp();
+            showToast(`₹${amount} Added to Wallet!`, "success");
+        }
+
+        function processWalletTopup() {
+            const input = document.getElementById('custom-wallet-amount');
+            const amount = parseFloat(input.value);
+
+            if (!amount || amount <= 0) {
+                showToast("Please enter a valid amount", "warning");
+                return;
+            }
+
+            quickAddMoney(amount);
+            input.value = "";
+            toggleAddMoneyModal();
+        }
+
+        function toggleAddMoneyModal() {
+            document.getElementById('add-money-modal').classList.toggle('hidden');
+        }
+
+        function saveAndSync() {
+            localStorage.setItem('raise_customer_profile', JSON.stringify(userData));
+        }
+
+        function logoutCustomer() {
+            if (confirm("Are you sure you want to logout?")) {
+                localStorage.removeItem('raise_customer_profile');
+                userData = null;
+                location.reload();
+            }
+        }
+
+        function showToast(message, type = "success") {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').textContent = message;
+
+            toast.classList.remove('translate-y-24', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-24', 'opacity-0');
+            }, 2500);
+        }
+    </script>
+</body>
+
+</html>
