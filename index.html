@@ -3,7 +3,7 @@
 
 <head>
     <!-- Razorpay Checkout JS Library -->
-<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QuickScan POS - Public Self-Checkout</title>
@@ -14,8 +14,8 @@
     <!-- Html5-QRCode Camera Scanner -->
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <!-- PWA Manifest Link -->
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#2563eb">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2563eb">
     <!-- QRCode.js Library for dynamic UPI QR generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
@@ -60,9 +60,17 @@
         }
 
         @keyframes scanAnimation {
-            0% { top: 5%; }
-            50% { top: 95%; }
-            100% { top: 5%; }
+            0% {
+                top: 5%;
+            }
+
+            50% {
+                top: 95%;
+            }
+
+            100% {
+                top: 5%;
+            }
         }
 
         .scan-corner {
@@ -75,16 +83,48 @@
             z-index: 20;
         }
 
-        .corner-tl { top: 12px; left: 12px; border-width: 4px 0 0 4px; border-top-left-radius: 8px; }
-        .corner-tr { top: 12px; right: 12px; border-width: 4px 4px 0 0; border-top-right-radius: 8px; }
-        .corner-bl { bottom: 12px; left: 12px; border-width: 0 0 4px 4px; border-bottom-left-radius: 8px; }
-        .corner-br { bottom: 12px; right: 12px; border-width: 0 4px 4px 0; border-bottom-right-radius: 8px; }
+        .corner-tl {
+            top: 12px;
+            left: 12px;
+            border-width: 4px 0 0 4px;
+            border-top-left-radius: 8px;
+        }
 
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .corner-tr {
+            top: 12px;
+            right: 12px;
+            border-width: 4px 4px 0 0;
+            border-top-right-radius: 8px;
+        }
 
-        #qrcode-canvas img, #qrcode-canvas canvas,
-        #user-qrcode-canvas img, #user-qrcode-canvas canvas {
+        .corner-bl {
+            bottom: 12px;
+            left: 12px;
+            border-width: 0 0 4px 4px;
+            border-bottom-left-radius: 8px;
+        }
+
+        .corner-br {
+            bottom: 12px;
+            right: 12px;
+            border-width: 0 4px 4px 0;
+            border-bottom-right-radius: 8px;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+
+        #qrcode-canvas img,
+        #qrcode-canvas canvas,
+        #user-qrcode-canvas img,
+        #user-qrcode-canvas canvas {
             margin: 0 auto;
             border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
@@ -95,10 +135,13 @@
 <body class="min-h-screen flex flex-col antialiased selection:bg-blue-500 selection:text-white bg-slate-50">
 
     <!-- ================= AUTHENTICATION MODAL (SCREEN 0) ================= -->
-    <div id="auth-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-slate-200 text-center space-y-6">
+    <div id="auth-modal"
+        class="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div
+            class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-slate-200 text-center space-y-6">
             <div>
-                <div class="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-3 font-bold text-xl shadow-lg shadow-blue-500/30">
+                <div
+                    class="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-3 font-bold text-xl shadow-lg shadow-blue-500/30">
                     <i class="fa-solid fa-user-check"></i>
                 </div>
                 <h2 class="text-2xl font-black text-slate-900 tracking-tight">Customer Verification</h2>
@@ -107,22 +150,26 @@
 
             <!-- Tab Switcher -->
             <div class="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
-                <button id="auth-tab-scan" onclick="switchAuthTab('scan')" class="flex-1 py-2.5 rounded-xl text-xs font-extrabold text-blue-600 bg-white shadow-sm transition">
+                <button id="auth-tab-scan" onclick="switchAuthTab('scan')"
+                    class="flex-1 py-2.5 rounded-xl text-xs font-extrabold text-blue-600 bg-white shadow-sm transition">
                     Scan Customer QR
                 </button>
-                <button id="auth-tab-reg" onclick="switchAuthTab('reg')" class="flex-1 py-2.5 rounded-xl text-xs font-extrabold text-slate-500 transition">
+                <button id="auth-tab-reg" onclick="switchAuthTab('reg')"
+                    class="flex-1 py-2.5 rounded-xl text-xs font-extrabold text-slate-500 transition">
                     New Registration
                 </button>
             </div>
 
             <!-- TAB 1: SCAN EXISTING CUSTOMER QR -->
             <div id="auth-box-scan" class="space-y-4">
-                <div class="bg-slate-900 rounded-2xl p-2 relative overflow-hidden border border-slate-800 min-h-[220px] flex items-center justify-center">
+                <div
+                    class="bg-slate-900 rounded-2xl p-2 relative overflow-hidden border border-slate-800 min-h-[220px] flex items-center justify-center">
                     <div id="auth-qr-reader" class="w-full h-full rounded-xl overflow-hidden"></div>
                 </div>
                 <p class="text-[11px] text-slate-400 font-medium">Show your Personal Customer QR Code to camera</p>
-                
-                <button onclick="skipAuthAndContinue()" class="text-xs font-bold text-slate-500 hover:text-blue-600 transition underline block mx-auto">
+
+                <button onclick="skipAuthAndContinue()"
+                    class="text-xs font-bold text-slate-500 hover:text-blue-600 transition underline block mx-auto">
                     Continue as Guest Customer
                 </button>
             </div>
@@ -132,25 +179,31 @@
                 <form id="reg-form" onsubmit="handleCustomerRegistration(event)" class="space-y-3">
                     <div>
                         <label class="text-xs font-bold text-slate-700 block mb-1">Full Name</label>
-                        <input type="text" id="reg-name" required placeholder="e.g. Rahul Sharma" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition">
+                        <input type="text" id="reg-name" required placeholder="e.g. Rahul Sharma"
+                            class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition">
                     </div>
                     <div>
                         <label class="text-xs font-bold text-slate-700 block mb-1">Mobile Number</label>
-                        <input type="tel" id="reg-phone" pattern="[0-9]{10}" required placeholder="10-digit number" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition">
+                        <input type="tel" id="reg-phone" pattern="[0-9]{10}" required placeholder="10-digit number"
+                            class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition">
                     </div>
-                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-extrabold py-3 px-4 rounded-xl shadow-lg shadow-blue-500/20 text-xs transition">
+                    <button type="submit"
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-extrabold py-3 px-4 rounded-xl shadow-lg shadow-blue-500/20 text-xs transition">
                         Generate Loyalty QR
                     </button>
                 </form>
 
                 <!-- Generated Customer QR Output -->
                 <div id="reg-qr-output" class="hidden text-center space-y-3 pt-2">
-                    <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 p-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2">
+                    <div
+                        class="bg-emerald-50 border border-emerald-200 text-emerald-800 p-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2">
                         <i class="fa-solid fa-gift text-base text-emerald-600"></i>
                         <span>+50 Welcome Loyalty Points Added!</span>
                     </div>
-                    <div id="user-qrcode-canvas" class="p-2 bg-white rounded-xl shadow-inner border border-slate-200 inline-block"></div>
-                    <button onclick="completeAuthAndStart()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 px-4 rounded-xl shadow-lg text-xs transition">
+                    <div id="user-qrcode-canvas"
+                        class="p-2 bg-white rounded-xl shadow-inner border border-slate-200 inline-block"></div>
+                    <button onclick="completeAuthAndStart()"
+                        class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 px-4 rounded-xl shadow-lg text-xs transition">
                         Start Shopping Now 🛒
                     </button>
                 </div>
@@ -162,26 +215,31 @@
     <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
         <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
             <div class="flex items-center gap-3 cursor-pointer" onclick="goToScreen(1)">
-                <div class="bg-blue-600 text-white p-2.5 rounded-xl flex items-center justify-center font-bold shadow-md shadow-blue-500/20">
+                <div
+                    class="bg-blue-600 text-white p-2.5 rounded-xl flex items-center justify-center font-bold shadow-md shadow-blue-500/20">
                     <i class="fa-solid fa-barcode text-xl"></i>
                 </div>
                 <div>
                     <h1 class="text-xl font-black tracking-tight text-slate-900 leading-none">
                         Quick<span class="text-blue-600">Scan</span> Express
                     </h1>
-                    <p class="text-[10px] text-slate-500 font-bold tracking-wider uppercase mt-0.5">Self Checkout Kiosk</p>
+                    <p class="text-[10px] text-slate-500 font-bold tracking-wider uppercase mt-0.5">Self Checkout Kiosk
+                    </p>
                 </div>
             </div>
 
             <!-- Customer Profile Info Badge -->
-            <div id="header-user-badge" class="flex items-center gap-2 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-full text-xs font-bold">
+            <div id="header-user-badge"
+                class="flex items-center gap-2 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-full text-xs font-bold">
                 <i class="fa-solid fa-circle-user text-blue-600 text-base"></i>
                 <span id="user-name-display" class="text-slate-800">Guest</span>
-                <span id="user-points-badge" class="bg-blue-600 text-white px-2 py-0.5 rounded-full text-[10px] font-black">0 Pts</span>
+                <span id="user-points-badge"
+                    class="bg-blue-600 text-white px-2 py-0.5 rounded-full text-[10px] font-black">0 Pts</span>
             </div>
 
             <!-- Multi-step Process Indicator -->
-            <div class="hidden md:flex items-center gap-2 text-xs font-bold bg-slate-100 border border-slate-200 px-3.5 py-1.5 rounded-full">
+            <div
+                class="hidden md:flex items-center gap-2 text-xs font-bold bg-slate-100 border border-slate-200 px-3.5 py-1.5 rounded-full">
                 <span id="step-pill-1" class="text-blue-600 font-black">1. Scan</span>
                 <i class="fa-solid fa-chevron-right text-[10px] text-slate-400"></i>
                 <span id="step-pill-2" class="text-slate-400">2. Review Item</span>
@@ -190,10 +248,12 @@
             </div>
 
             <!-- Cart Badge Counter -->
-            <button onclick="goToFinalBillScreen()" class="relative bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition active:scale-95 shadow-sm">
+            <button onclick="goToFinalBillScreen()"
+                class="relative bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition active:scale-95 shadow-sm">
                 <i class="fa-solid fa-cart-shopping text-base text-blue-600"></i>
                 <span>Cart</span>
-                <span id="cart-badge-count" class="bg-blue-600 text-white px-2 py-0.5 rounded-full font-black text-xs shadow-sm">0</span>
+                <span id="cart-badge-count"
+                    class="bg-blue-600 text-white px-2 py-0.5 rounded-full font-black text-xs shadow-sm">0</span>
             </button>
         </div>
     </header>
@@ -213,8 +273,10 @@
                 </p>
             </div>
 
-            <div class="w-full max-w-md bg-white rounded-3xl p-4 shadow-xl border border-slate-200 relative overflow-hidden">
-                <div class="relative bg-slate-950 rounded-2xl overflow-hidden min-h-[260px] flex items-center justify-center border border-slate-800">
+            <div
+                class="w-full max-w-md bg-white rounded-3xl p-4 shadow-xl border border-slate-200 relative overflow-hidden">
+                <div
+                    class="relative bg-slate-950 rounded-2xl overflow-hidden min-h-[260px] flex items-center justify-center border border-slate-800">
                     <div id="reader" class="w-full h-full"></div>
                     <div id="scanner-laser" class="scanner-laser"></div>
 
@@ -223,7 +285,8 @@
                     <div class="scan-corner corner-bl"></div>
                     <div class="scan-corner corner-br"></div>
 
-                    <div id="camera-loading" class="absolute inset-0 bg-slate-900/90 text-white flex flex-col items-center justify-center p-6 text-center space-y-3 z-30">
+                    <div id="camera-loading"
+                        class="absolute inset-0 bg-slate-900/90 text-white flex flex-col items-center justify-center p-6 text-center space-y-3 z-30">
                         <i class="fa-solid fa-camera text-4xl text-blue-400 animate-bounce"></i>
                         <p class="text-sm font-bold text-slate-100">Starting Camera Feed...</p>
                         <p class="text-xs text-slate-400">Please grant camera permission if requested</p>
@@ -235,7 +298,8 @@
                         <i class="fa-solid fa-bolt text-amber-500"></i>
                         Auto scanner active
                     </span>
-                    <button onclick="restartCamera()" class="text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 transition">
+                    <button onclick="restartCamera()"
+                        class="text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 transition">
                         <i class="fa-solid fa-rotate-right"></i> Reset Camera
                     </button>
                 </div>
@@ -243,26 +307,33 @@
 
             <div class="w-full max-w-md bg-white rounded-2xl p-5 shadow-lg border border-slate-200 space-y-4">
                 <div class="flex items-center justify-between">
-                    <span class="text-xs font-extrabold uppercase tracking-wider text-slate-500">⚡ Tap to Test Instant Scan:</span>
-                    <span class="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-md font-mono font-bold">Demo Mode</span>
+                    <span class="text-xs font-extrabold uppercase tracking-wider text-slate-500">⚡ Tap to Test Instant
+                        Scan:</span>
+                    <span
+                        class="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-md font-mono font-bold">Demo
+                        Mode</span>
                 </div>
 
                 <div id="quick-demo-grid" class="grid grid-cols-2 gap-2.5"></div>
 
                 <div class="pt-2 border-t border-slate-100 flex gap-2">
-                    <input type="text" id="manual-code-input" placeholder="Enter barcode (e.g. 8901)" class="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition">
-                    <button onclick="handleManualSubmit()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow-sm">
+                    <input type="text" id="manual-code-input" placeholder="Enter barcode (e.g. 8901)"
+                        class="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition">
+                    <button onclick="handleManualSubmit()"
+                        class="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow-sm">
                         Scan
                     </button>
                 </div>
             </div>
 
-            <div class="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-4 shadow-xl flex items-center justify-between">
+            <div
+                class="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-4 shadow-xl flex items-center justify-between">
                 <div>
                     <p class="text-[11px] text-slate-500 font-bold uppercase tracking-wide">Cart Summary</p>
                     <p class="text-lg font-black text-blue-600" id="scanner-bottom-count">0 Items (₹0)</p>
                 </div>
-                <button onclick="goToFinalBillScreen()" class="bg-blue-600 hover:bg-blue-700 text-white font-black px-5 py-2.5 rounded-xl text-sm transition shadow-lg shadow-blue-500/20 flex items-center gap-2 active:scale-95">
+                <button onclick="goToFinalBillScreen()"
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-black px-5 py-2.5 rounded-xl text-sm transition shadow-lg shadow-blue-500/20 flex items-center gap-2 active:scale-95">
                     <span>View Final Bill & Pay</span>
                     <i class="fa-solid fa-arrow-right text-xs"></i>
                 </button>
@@ -274,29 +345,37 @@
         <section id="screen-2" class="w-full max-w-2xl hidden transition-all duration-300 space-y-6">
 
             <div class="flex items-center justify-between">
-                <button onclick="goToScreen(1)" class="bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-2">
+                <button onclick="goToScreen(1)"
+                    class="bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-2">
                     <i class="fa-solid fa-arrow-left text-blue-600"></i>
                     <span>Cancel / Rescan</span>
                 </button>
-                <span class="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 rounded-full flex items-center gap-1.5">
+                <span
+                    class="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 rounded-full flex items-center gap-1.5">
                     <i class="fa-solid fa-circle-check text-emerald-600"></i> Item Scanned
                 </span>
             </div>
 
             <div class="bg-white rounded-3xl p-6 shadow-xl border border-slate-200">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-6 flex items-center justify-center relative min-h-[220px]">
-                        <img id="scanned-item-img" src="" alt="Product Image" class="max-h-48 object-contain rounded-lg drop-shadow-sm">
-                        <span id="scanned-item-badge" class="absolute top-3 left-3 bg-blue-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-md uppercase tracking-wider shadow-sm">
+                    <div
+                        class="bg-slate-50 border border-slate-200 rounded-2xl p-6 flex items-center justify-center relative min-h-[220px]">
+                        <img id="scanned-item-img" src="" alt="Product Image"
+                            class="max-h-48 object-contain rounded-lg drop-shadow-sm">
+                        <span id="scanned-item-badge"
+                            class="absolute top-3 left-3 bg-blue-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-md uppercase tracking-wider shadow-sm">
                             Scanned
                         </span>
                     </div>
 
                     <div class="space-y-5">
                         <div>
-                            <span id="scanned-item-brand" class="text-xs font-black text-blue-600 uppercase tracking-widest block">BRAND</span>
-                            <h3 id="scanned-item-title" class="text-xl font-extrabold text-slate-900 mt-1 leading-snug">Product Title Here</h3>
-                            <p class="text-xs text-slate-500 font-mono mt-1">Unit Rate: <span id="scanned-item-unit-rate" class="text-slate-900 font-bold">₹0</span> / piece</p>
+                            <span id="scanned-item-brand"
+                                class="text-xs font-black text-blue-600 uppercase tracking-widest block">BRAND</span>
+                            <h3 id="scanned-item-title" class="text-xl font-extrabold text-slate-900 mt-1 leading-snug">
+                                Product Title Here</h3>
+                            <p class="text-xs text-slate-500 font-mono mt-1">Unit Rate: <span
+                                    id="scanned-item-unit-rate" class="text-slate-900 font-bold">₹0</span> / piece</p>
                         </div>
 
                         <div class="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-3">
@@ -305,30 +384,37 @@
                             </label>
 
                             <div class="flex items-center justify-center gap-4">
-                                <button onclick="changeCurrentItemQty(-1)" class="w-12 h-12 bg-white hover:bg-slate-100 active:scale-95 border border-slate-300 rounded-xl font-black text-xl text-blue-600 flex items-center justify-center transition shadow-sm">
+                                <button onclick="changeCurrentItemQty(-1)"
+                                    class="w-12 h-12 bg-white hover:bg-slate-100 active:scale-95 border border-slate-300 rounded-xl font-black text-xl text-blue-600 flex items-center justify-center transition shadow-sm">
                                     <i class="fa-solid fa-minus"></i>
                                 </button>
-                                <span id="scanned-item-qty" class="w-16 text-center font-black text-2xl text-slate-900 font-mono bg-white border border-slate-300 py-1.5 rounded-xl shadow-inner">1</span>
-                                <button onclick="changeCurrentItemQty(1)" class="w-12 h-12 bg-white hover:bg-slate-100 active:scale-95 border border-slate-300 rounded-xl font-black text-xl text-blue-600 flex items-center justify-center transition shadow-sm">
+                                <span id="scanned-item-qty"
+                                    class="w-16 text-center font-black text-2xl text-slate-900 font-mono bg-white border border-slate-300 py-1.5 rounded-xl shadow-inner">1</span>
+                                <button onclick="changeCurrentItemQty(1)"
+                                    class="w-12 h-12 bg-white hover:bg-slate-100 active:scale-95 border border-slate-300 rounded-xl font-black text-xl text-blue-600 flex items-center justify-center transition shadow-sm">
                                     <i class="fa-solid fa-plus"></i>
                                 </button>
                             </div>
                         </div>
 
-                        <div class="flex justify-between items-center bg-blue-50 border border-blue-200 px-4 py-3 rounded-xl">
+                        <div
+                            class="flex justify-between items-center bg-blue-50 border border-blue-200 px-4 py-3 rounded-xl">
                             <span class="text-xs font-bold text-blue-900 uppercase">Item Subtotal:</span>
-                            <span id="scanned-item-subtotal" class="text-2xl font-black text-blue-600 font-mono">₹0</span>
+                            <span id="scanned-item-subtotal"
+                                class="text-2xl font-black text-blue-600 font-mono">₹0</span>
                         </div>
                     </div>
                 </div>
 
                 <div class="mt-8 pt-6 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <button onclick="saveCurrentItemAndScanMore()" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-extrabold py-3.5 px-4 rounded-xl shadow-sm transition flex items-center justify-center gap-2 active:scale-95 text-sm">
+                    <button onclick="saveCurrentItemAndScanMore()"
+                        class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-extrabold py-3.5 px-4 rounded-xl shadow-sm transition flex items-center justify-center gap-2 active:scale-95 text-sm">
                         <i class="fa-solid fa-plus text-blue-600"></i>
                         <span>Add & Scan Next Item</span>
                     </button>
 
-                    <button onclick="saveCurrentItemAndGoCheckout()" class="bg-blue-600 hover:bg-blue-700 text-white font-black py-3.5 px-4 rounded-xl shadow-lg shadow-blue-500/20 transition flex items-center justify-center gap-2 active:scale-95 text-sm">
+                    <button onclick="saveCurrentItemAndGoCheckout()"
+                        class="bg-blue-600 hover:bg-blue-700 text-white font-black py-3.5 px-4 rounded-xl shadow-lg shadow-blue-500/20 transition flex items-center justify-center gap-2 active:scale-95 text-sm">
                         <i class="fa-solid fa-cart-check"></i>
                         <span>Go to Final Bill 🛒</span>
                     </button>
@@ -341,12 +427,14 @@
         <section id="screen-3" class="w-full max-w-3xl hidden transition-all duration-300 space-y-6">
 
             <div class="flex items-center justify-between">
-                <button onclick="goToScreen(1)" class="bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-xs shadow-sm transition flex items-center gap-2">
+                <button onclick="goToScreen(1)"
+                    class="bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-xs shadow-sm transition flex items-center gap-2">
                     <i class="fa-solid fa-plus text-blue-600"></i>
                     <span>+ Scan More Products</span>
                 </button>
 
-                <span class="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-3.5 py-1.5 rounded-full flex items-center gap-1.5">
+                <span
+                    class="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-3.5 py-1.5 rounded-full flex items-center gap-1.5">
                     <i class="fa-solid fa-receipt text-blue-600"></i> Final Order Review
                 </span>
             </div>
@@ -357,7 +445,9 @@
                         <i class="fa-solid fa-basket-shopping text-blue-600"></i>
                         <span>Scanned Items Summary</span>
                     </h3>
-                    <span id="bill-total-items-badge" class="text-xs bg-white border border-slate-300 px-3 py-1 rounded-full font-bold text-slate-700 shadow-sm">0 Items</span>
+                    <span id="bill-total-items-badge"
+                        class="text-xs bg-white border border-slate-300 px-3 py-1 rounded-full font-bold text-slate-700 shadow-sm">0
+                        Items</span>
                 </div>
 
                 <div id="cart-items-container" class="p-4 sm:p-6 divide-y divide-slate-100 space-y-4"></div>
@@ -367,15 +457,17 @@
                         <span>Items Subtotal</span>
                         <span id="bill-subtotal" class="font-bold text-slate-900">₹0</span>
                     </div>
-                    
-                    <div id="loyalty-discount-row" class="flex justify-between text-xs sm:text-sm text-emerald-600 font-semibold hidden">
+
+                    <div id="loyalty-discount-row"
+                        class="flex justify-between text-xs sm:text-sm text-emerald-600 font-semibold hidden">
                         <span>Loyalty Points Discount</span>
                         <span id="bill-loyalty-discount" class="font-bold">-₹0</span>
                     </div>
 
                     <div class="border-t border-dashed border-slate-300 pt-3 flex justify-between items-center">
                         <div>
-                            <span class="text-sm font-black uppercase tracking-wider text-slate-900 block">Grand Total Payable</span>
+                            <span class="text-sm font-black uppercase tracking-wider text-slate-900 block">Grand Total
+                                Payable</span>
                             <span class="text-xs text-slate-500">(कुल भुगतान राशि)</span>
                         </div>
                         <span id="bill-grand-total" class="text-3xl font-black text-blue-600 font-mono">₹0</span>
@@ -383,39 +475,46 @@
                 </div>
             </div>
 
-<div class="bg-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-200 text-center space-y-6">
-    <div>
-        <span class="bg-blue-50 text-blue-700 border border-blue-200 text-xs font-black px-3.5 py-1.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1.5">
-            <i class="fa-solid fa-shield-halved text-blue-600"></i> Razorpay Secure Payment
-        </span>
-        <h3 class="text-2xl font-black text-slate-900 mt-3">Select Payment Method</h3>
-        <p class="text-xs text-slate-500 font-medium">Pay via UPI QR, GPay, PhonePe, Cards or Netbanking</p>
-    </div>
-
-    <button onclick="startRazorpayPayment()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 px-6 rounded-2xl shadow-xl shadow-blue-600/20 transition flex items-center justify-center gap-3 active:scale-95 text-base">
-        <i class="fa-solid fa-credit-card text-xl"></i>
-        <span>Pay Now with Razorpay</span>
-    </button>
-</div>
-
-                <div class="flex flex-col items-center justify-center bg-slate-50 p-6 rounded-2xl border border-slate-200 max-w-sm mx-auto shadow-inner">
-                    <div id="qrcode-canvas" class="p-3 bg-white rounded-2xl shadow-md border border-slate-200"></div>
-                    <div class="mt-4 flex items-center gap-2 text-xs text-slate-600 font-mono bg-white px-3.5 py-1.5 rounded-full border border-slate-300 shadow-sm">
-                        <i class="fa-solid fa-wallet text-blue-600"></i>
-     <span>Merchant VPA: <strong class="text-slate-900">972920078@ptyes (Tanmay Tuli)</strong></span>
-                    </div>
+            <div class="bg-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-200 text-center space-y-6">
+                <div>
+                    <span
+                        class="bg-blue-50 text-blue-700 border border-blue-200 text-xs font-black px-3.5 py-1.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1.5">
+                        <i class="fa-solid fa-shield-halved text-blue-600"></i> Razorpay Secure Payment
+                    </span>
+                    <h3 class="text-2xl font-black text-slate-900 mt-3">Select Payment Method</h3>
+                    <p class="text-xs text-slate-500 font-medium">Pay via UPI QR, GPay, PhonePe, Cards or Netbanking</p>
                 </div>
 
-                <div class="flex justify-center items-center gap-4 text-slate-500 text-xs font-bold">
-                    <span class="flex items-center gap-1"><i class="fa-brands fa-google-pay text-base text-blue-600"></i> GPay</span>
-                    <span class="flex items-center gap-1"><i class="fa-solid fa-mobile-screen-button text-purple-600"></i> PhonePe</span>
-                    <span class="flex items-center gap-1"><i class="fa-solid fa-wallet text-sky-500"></i> Paytm</span>
-                </div>
-
-                <button onclick="simulatePaymentSuccess()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 px-6 rounded-2xl shadow-xl shadow-emerald-600/20 transition flex items-center justify-center gap-2 active:scale-95 text-base">
-                    <i class="fa-solid fa-circle-check text-lg"></i>
-                    <span>Simulate Successful Payment</span>
+                <button onclick="startRazorpayPayment()"
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 px-6 rounded-2xl shadow-xl shadow-blue-600/20 transition flex items-center justify-center gap-3 active:scale-95 text-base">
+                    <i class="fa-solid fa-credit-card text-xl"></i>
+                    <span>Pay Now with Razorpay</span>
                 </button>
+            </div>
+
+            <div
+                class="flex flex-col items-center justify-center bg-slate-50 p-6 rounded-2xl border border-slate-200 max-w-sm mx-auto shadow-inner">
+                <div id="qrcode-canvas" class="p-3 bg-white rounded-2xl shadow-md border border-slate-200"></div>
+                <div
+                    class="mt-4 flex items-center gap-2 text-xs text-slate-600 font-mono bg-white px-3.5 py-1.5 rounded-full border border-slate-300 shadow-sm">
+                    <i class="fa-solid fa-wallet text-blue-600"></i>
+                    <span>Merchant VPA: <strong class="text-slate-900">972920078@ptyes (Tanmay Tuli)</strong></span>
+                </div>
+            </div>
+
+            <div class="flex justify-center items-center gap-4 text-slate-500 text-xs font-bold">
+                <span class="flex items-center gap-1"><i class="fa-brands fa-google-pay text-base text-blue-600"></i>
+                    GPay</span>
+                <span class="flex items-center gap-1"><i class="fa-solid fa-mobile-screen-button text-purple-600"></i>
+                    PhonePe</span>
+                <span class="flex items-center gap-1"><i class="fa-solid fa-wallet text-sky-500"></i> Paytm</span>
+            </div>
+
+            <button onclick="simulatePaymentSuccess()"
+                class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 px-6 rounded-2xl shadow-xl shadow-emerald-600/20 transition flex items-center justify-center gap-2 active:scale-95 text-base">
+                <i class="fa-solid fa-circle-check text-lg"></i>
+                <span>Simulate Successful Payment</span>
+            </button>
             </div>
 
         </section>
@@ -423,35 +522,46 @@
     </main>
 
     <!-- Payment Success Modal -->
-    <div id="payment-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl max-w-sm w-full p-6 sm:p-8 text-center space-y-5 shadow-2xl border border-slate-200 transform transition-all relative">
+    <div id="payment-modal"
+        class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+        <div
+            class="bg-white rounded-3xl max-w-sm w-full p-6 sm:p-8 text-center space-y-5 shadow-2xl border border-slate-200 transform transition-all relative">
 
-            <div id="modal-countdown-banner" class="bg-blue-50 border border-blue-200 text-blue-800 rounded-2xl py-2 px-3 flex items-center justify-between text-xs font-bold">
+            <div id="modal-countdown-banner"
+                class="bg-blue-50 border border-blue-200 text-blue-800 rounded-2xl py-2 px-3 flex items-center justify-between text-xs font-bold">
                 <span class="flex items-center gap-1.5">
                     <i class="fa-solid fa-rotate-right animate-spin text-blue-600"></i>
                     Auto reload in: <strong id="countdown-seconds" class="font-mono text-blue-600 text-sm">10</strong>s
                 </span>
-                <button onclick="pauseAutoResetTimer()" id="pause-timer-btn" class="bg-white hover:bg-slate-100 text-slate-700 text-[10px] px-2 py-1 rounded-lg border border-slate-300 transition shadow-sm">
+                <button onclick="pauseAutoResetTimer()" id="pause-timer-btn"
+                    class="bg-white hover:bg-slate-100 text-slate-700 text-[10px] px-2 py-1 rounded-lg border border-slate-300 transition shadow-sm">
                     Pause Timer
                 </button>
             </div>
 
-            <div class="w-20 h-20 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-full flex items-center justify-center mx-auto text-4xl shadow-md animate-bounce">
+            <div
+                class="w-20 h-20 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-full flex items-center justify-center mx-auto text-4xl shadow-md animate-bounce">
                 <i class="fa-solid fa-check"></i>
             </div>
 
             <div>
                 <h3 class="text-2xl font-black text-slate-900">Payment Received!</h3>
-                <p class="text-xs text-slate-500 mt-1">Order #<span id="modal-order-id" class="font-mono font-bold text-blue-600">1001</span> confirmed</p>
+                <p class="text-xs text-slate-500 mt-1">Order #<span id="modal-order-id"
+                        class="font-mono font-bold text-blue-600">1001</span> confirmed</p>
             </div>
 
             <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs space-y-2 text-left">
-                <div class="flex justify-between"><span class="text-slate-500">Amount Paid:</span><span id="modal-total-paid" class="font-bold text-slate-900 font-mono">₹0</span></div>
-                <div class="flex justify-between"><span class="text-slate-500">Customer:</span><span id="modal-user-name" class="font-bold text-slate-900">Guest</span></div>
-                <div class="flex justify-between"><span class="text-slate-500">Status:</span><span class="font-bold text-emerald-600">SUCCESSFUL <i class="fa-solid fa-circle-check"></i></span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Amount Paid:</span><span
+                        id="modal-total-paid" class="font-bold text-slate-900 font-mono">₹0</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Customer:</span><span
+                        id="modal-user-name" class="font-bold text-slate-900">Guest</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Status:</span><span
+                        class="font-bold text-emerald-600">SUCCESSFUL <i class="fa-solid fa-circle-check"></i></span>
+                </div>
             </div>
 
-            <button onclick="startNewOrder()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-extrabold py-3.5 px-6 rounded-xl shadow-lg shadow-blue-500/20 transition text-sm active:scale-95 flex items-center justify-center gap-2">
+            <button onclick="startNewOrder()"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-extrabold py-3.5 px-6 rounded-xl shadow-lg shadow-blue-500/20 transition text-sm active:scale-95 flex items-center justify-center gap-2">
                 <i class="fa-solid fa-rotate-right"></i>
                 <span>Start Next Scan / New Customer Now</span>
             </button>
@@ -459,7 +569,8 @@
     </div>
 
     <!-- Toast Notification -->
-    <div id="toast" class="fixed bottom-6 right-6 bg-slate-900 text-white px-5 py-3.5 rounded-2xl shadow-2xl z-50 transform translate-y-24 opacity-0 transition-all duration-300 flex items-center gap-3 border border-slate-800">
+    <div id="toast"
+        class="fixed bottom-6 right-6 bg-slate-900 text-white px-5 py-3.5 rounded-2xl shadow-2xl z-50 transform translate-y-24 opacity-0 transition-all duration-300 flex items-center gap-3 border border-slate-800">
         <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400 text-xl"></i>
         <span id="toast-message" class="text-sm font-semibold">Notification message</span>
     </div>
@@ -544,7 +655,7 @@
                             showToast("Invalid Customer QR!", "warning");
                         }
                     },
-                    () => {}
+                    () => { }
                 );
             } catch (err) {
                 console.warn("Front Camera unavailable, trying default...", err);
@@ -563,9 +674,9 @@
                                 showToast("Invalid Customer QR!", "warning");
                             }
                         },
-                        () => {}
+                        () => { }
                     );
-                } catch(err2) {
+                } catch (err2) {
                     console.error("Camera fail:", err2);
                 }
             }
@@ -703,7 +814,7 @@
                     try {
                         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
                         stream.getTracks().forEach(track => track.stop());
-                    } catch (e) {}
+                    } catch (e) { }
                 }
                 isCameraTransitioning = false;
             }
@@ -833,23 +944,23 @@
             renderCartListScreen3();
         }
 
-function renderCartListScreen3() {
-    const container = document.getElementById('cart-items-container');
-    const totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
-    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+        function renderCartListScreen3() {
+            const container = document.getElementById('cart-items-container');
+            const totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
+            const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
 
-    // Loyalty points deduction removed - Direct full subtotal
-    const grandTotal = subtotal;
+            // Loyalty points deduction removed - Direct full subtotal
+            const grandTotal = subtotal;
 
-    // Discount row ko always hide rakho
-    document.getElementById('loyalty-discount-row').classList.add('hidden');
+            // Discount row ko always hide rakho
+            document.getElementById('loyalty-discount-row').classList.add('hidden');
 
-    document.getElementById('bill-total-items-badge').textContent = `${totalItems} Items`;
-    document.getElementById('bill-subtotal').textContent = `₹${subtotal.toLocaleString('en-IN')}`;
-    document.getElementById('bill-grand-total').textContent = `₹${grandTotal.toLocaleString('en-IN')}`;
+            document.getElementById('bill-total-items-badge').textContent = `${totalItems} Items`;
+            document.getElementById('bill-subtotal').textContent = `₹${subtotal.toLocaleString('en-IN')}`;
+            document.getElementById('bill-grand-total').textContent = `₹${grandTotal.toLocaleString('en-IN')}`;
 
-    if (cart.length === 0) {
-        container.innerHTML = `
+            if (cart.length === 0) {
+                container.innerHTML = `
             <div class="text-center py-12 space-y-3">
                 <i class="fa-solid fa-basket-shopping text-5xl text-slate-300"></i>
                 <p class="text-base font-bold text-slate-500">Your cart is currently empty</p>
@@ -858,11 +969,11 @@ function renderCartListScreen3() {
                 </button>
             </div>
         `;
-        generateUPIQRCode(0);
-        return;
-    }
+                generateUPIQRCode(0);
+                return;
+            }
 
-    container.innerHTML = cart.map(item => `
+            container.innerHTML = cart.map(item => `
         <div class="flex flex-col sm:flex-row items-center justify-between gap-4 py-3">
             <div class="flex items-center gap-3.5 w-full sm:w-auto">
                 <img src="${item.image}" alt="${item.title}" class="w-14 h-14 object-contain rounded-xl bg-slate-50 border border-slate-200 p-1 shrink-0">
@@ -897,47 +1008,46 @@ function renderCartListScreen3() {
         </div>
     `).join('');
 
-    generateUPIQRCode(grandTotal);
-}
-
-function startRazorpayPayment() {
-    const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-    
-    if (totalAmount <= 0) {
-        showToast("Cart is empty!", "warning");
-        return;
-    }
-
-    const options = {
-        "key": "rzp_test_TlmaZP860HLd5d", // Razorpay Dashboard se apni Test Key ID daalein
-        "amount": totalAmount * 100, // Amount in paise (₹100 = 10000 paise)
-        "currency": "INR",
-        "name": "QuickScan Express",
-        "description": "Self Checkout Order Payment",
-        "image": "https://cdn-icons-png.flaticon.com/512/3081/3081559.png",
-        "handler": function (response) {
-            // Success Payment
-            console.log("Razorpay Payment ID:", response.razorpay_payment_id);
-            showToast("Payment Successful!", "success");
-            simulatePaymentSuccess(response.razorpay_payment_id);
-        },
-        "prefill": {
-            "name": activeUser.name || "Guest Customer",
-            "contact": activeUser.phone || "9999999999"
-        },
-        "theme": {
-            "color": "#2563eb"
+            generateUPIQRCode(grandTotal);
         }
-    };
 
-    const rzp = new Razorpay(options);
-    
-    rzp.on('payment.failed', function (response) {
-        showToast("Payment Failed: " + response.error.description, "warning");
-    });
+        function startRazorpayPayment() {
+            const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
 
-    rzp.open();
-}
+            if (totalAmount <= 0) {
+                showToast("Cart is empty!", "warning");
+                return;
+            }
+
+            const options = {
+                "key": "rzp_test_YOUR_KEY_HERE", // Yahan apni Razorpay Key ID daalein
+                "amount": totalAmount * 100, // Amount in paise (₹100 = 10000 paise)
+                "currency": "INR",
+                "name": "RAISE",
+                "description": "Smart Self Checkout Kiosk Payment",
+                "image": "https://cdn-icons-png.flaticon.com/512/3081/3081559.png",
+                "handler": function (response) {
+                    console.log("Payment ID:", response.razorpay_payment_id);
+                    showToast("Payment Successful!", "success");
+                    simulatePaymentSuccess(response.razorpay_payment_id);
+                },
+                "prefill": {
+                    "name": activeUser ? activeUser.name : "Guest Customer",
+                    "contact": activeUser ? activeUser.phone : "9999999999"
+                },
+                "theme": {
+                    "color": "#2563eb"
+                }
+            };
+
+            const rzp = new Razorpay(options);
+
+            rzp.on('payment.failed', function (response) {
+                showToast("Payment Failed: " + response.error.description, "warning");
+            });
+
+            rzp.open();
+        }
 
         function goToScreen(screenNumber) {
             document.getElementById('screen-1').classList.add('hidden');
