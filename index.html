@@ -634,7 +634,7 @@
                 console.warn("Front Camera unavailable, trying default...", err);
                 try {
                     await authHtml5QrCode.start(
-                        { facingMode: "environment" },
+                        { facingMode: "user" },
                         config,
                         (qrData) => {
                             try {
