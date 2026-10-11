@@ -114,7 +114,9 @@
                 height: { ideal: 1080 },
                 frameRate: { ideal: 30 }
             };
+            // On a phone, prefer the rear camera (it has autofocus); a single USB webcam ignores this.
             if (deviceId) video.deviceId = { exact: deviceId };
+            else video.facingMode = { ideal: "environment" };
             try {
                 this.stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
             } catch (err) {
