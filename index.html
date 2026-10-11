@@ -4,1191 +4,610 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QuickScan POS - Public Self-Checkout</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome Icon Library -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Html5-QRCode Camera Scanner -->
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-    <!-- PWA Manifest Link -->
+    <title>RAISE Self-Checkout</title>
+    <meta name="theme-color" content="#13211c">
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#2563eb">
-    <!-- QRCode.js Library for dynamic UPI QR generation -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        brand: {
-                            50: '#eff6ff',
-                            100: '#dbeafe',
-                            500: '#3b82f6',
-                            600: '#2563eb',
-                            700: '#1d4ed8',
-                            900: '#1e3a8a'
-                        }
-                    }
-                }
-            }
-        }
-    </script>
-
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap">
+    <link rel="stylesheet" href="raise.css">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+        html, body { height: 100%; }
+        .app { display: grid; grid-template-rows: 56px minmax(0, 1fr); height: 100%; min-height: 0; }
 
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f8fafc;
-            color: #0f172a;
+        /* Header band */
+        .band { display: flex; align-items: center; gap: var(--s6); padding: 0 var(--s4); background: var(--band); color: var(--band-ink); border-bottom: 1px solid var(--band-line); }
+        .brand { display: flex; align-items: baseline; gap: var(--s2); }
+        .brand b { font-size: var(--t-lg); font-weight: 700; letter-spacing: .14em; }
+        .brand span { font-size: var(--t-xs); color: var(--band-mute); letter-spacing: .02em; }
+        .steps { display: flex; align-items: center; gap: var(--s2); margin: 0 auto; list-style: none; padding: 0; }
+        .steps li { display: flex; align-items: center; gap: var(--s2); font-size: var(--t-sm); font-weight: 550; color: var(--band-mute); }
+        .steps li + li::before { content: ""; width: 28px; height: 1px; background: var(--band-line); margin-right: var(--s2); }
+        .steps .n { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--band-line); font-family: var(--mono); font-size: 11px; transition: all var(--dur) var(--ease); }
+        .steps li[aria-current="step"] { color: var(--band-ink); }
+        .steps li[aria-current="step"] .n { background: #3fbf9b; border-color: #3fbf9b; color: #07241b; }
+        .steps li.done .n { background: transparent; border-color: #3fbf9b; color: #3fbf9b; }
+        .steps li.done { color: var(--band-ink); }
+        .holder { display: flex; align-items: center; gap: var(--s2); height: 36px; padding: 0 var(--s3); border: 1px solid var(--band-line); border-radius: var(--r-md); background: var(--band-2); font-size: var(--t-sm); }
+        .holder .icon { color: #3fbf9b; }
+        .holder .pid { font-family: var(--mono); font-size: 11px; color: var(--band-mute); }
+
+        /* Main two-pane */
+        .main { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(340px, 1fr); gap: var(--s4); padding: var(--s4); min-height: 0; }
+        .card { display: flex; flex-direction: column; min-height: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); box-shadow: var(--shadow-sheet); }
+        .card-body { flex: 1; min-height: 0; overflow: auto; padding: var(--s4); display: flex; flex-direction: column; gap: var(--s3); }
+
+        /* Camera */
+        .cam { position: relative; background: var(--viewport-bg); border-radius: var(--r-md); overflow: hidden; aspect-ratio: 16 / 9; width: 100%; max-height: 52vh; margin: 0 auto; }
+        .cam video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+        .cam.is-mirrored video { transform: scaleX(-1); }
+        .guide { position: absolute; pointer-events: none; transition: all var(--dur) var(--ease); }
+        .guide--pass { left: 7.5%; right: 7.5%; top: 7.5%; bottom: 7.5%; }
+        .guide--product { left: 7%; right: 7%; top: 19%; bottom: 19%; }
+        .cam[data-mode="pass"] .guide--pass { opacity: 1; } .cam[data-mode="pass"] .guide--product { opacity: 0; }
+        .cam[data-mode="product"] .guide--product { opacity: 1; } .cam[data-mode="product"] .guide--pass { opacity: 0; }
+        .cam[data-mode="pass"] .guide--pass { aspect-ratio: 1; left: 50%; right: auto; top: 50%; bottom: auto; height: 85%; transform: translate(-50%, -50%); }
+        .guide i { position: absolute; width: 22px; height: 22px; border: 3px solid #fff; opacity: .95; }
+        .guide i:nth-child(1) { left: 0; top: 0; border-right: 0; border-bottom: 0; border-top-left-radius: 6px; }
+        .guide i:nth-child(2) { right: 0; top: 0; border-left: 0; border-bottom: 0; border-top-right-radius: 6px; }
+        .guide i:nth-child(3) { left: 0; bottom: 0; border-right: 0; border-top: 0; border-bottom-left-radius: 6px; }
+        .guide i:nth-child(4) { right: 0; bottom: 0; border-left: 0; border-top: 0; border-bottom-right-radius: 6px; }
+        .guide .sweep { position: absolute; left: 4%; right: 4%; height: 2px; background: #6be0bf; animation: sweep 2.2s var(--ease) infinite alternate; }
+        @keyframes sweep { from { top: 6%; } to { top: 94%; } }
+        .cam.is-paused .sweep { display: none; }
+        .cam-status { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s3); padding: var(--s6); text-align: center; background: rgba(11, 16, 14, .9); color: #e8eee7; }
+        .cam-status .icon { width: 30px; height: 30px; color: #9fb2a8; }
+        .cam-status p { max-width: 36ch; font-size: var(--t-md); }
+        .cam-status .btn { background: transparent; color: #e8eee7; border-color: #4a6358; }
+        .cam-status .btn:hover { background: #1c2e27; }
+        .cam-instruction { font-size: var(--t-xl); font-weight: 650; letter-spacing: -0.02em; }
+        .cam-row { display: flex; align-items: center; gap: var(--s2); }
+        .cam-row .grow { flex: 1; }
+        .cam-tools { display: flex; align-items: center; gap: var(--s2); padding: 4px; background: var(--band); border-radius: var(--r-md); }
+        .cam-tools .icon-btn { color: var(--band-mute); } .cam-tools .icon-btn:hover { background: var(--band-2); color: #fff; }
+        .cam-tools .icon-btn[aria-pressed="true"] { background: #3fbf9b; color: #07241b; }
+
+        .manual { display: flex; gap: var(--s2); }
+        .manual .field { font-family: var(--mono); letter-spacing: .04em; }
+        .divider { display: flex; align-items: center; gap: var(--s3); color: var(--mute); font-size: var(--t-xs); }
+        .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+        .last { display: flex; align-items: center; gap: var(--s3); padding: var(--s3); border: 1px dashed var(--line-strong); border-radius: var(--r-md); min-height: 72px; color: var(--mute); font-size: var(--t-sm); }
+        .last.has { border-style: solid; border-color: var(--line); background: var(--paper); color: var(--ink); }
+        .thumb { width: 48px; height: 48px; flex: none; border-radius: var(--r-sm); background: #fff; border: 1px solid var(--line); object-fit: contain; display: grid; place-items: center; color: var(--mute); overflow: hidden; }
+        .thumb img { width: 100%; height: 100%; object-fit: contain; }
+        .last .t { font-weight: 600; line-height: 1.25; }
+        .last .s { font-size: var(--t-xs); color: var(--mute); margin-top: 2px; }
+
+        .catalog-peek { font-size: var(--t-xs); color: var(--mute); }
+        .catalog-peek code { font-family: var(--mono); background: var(--paper-2); padding: 1px 5px; border-radius: 4px; color: var(--ink-2); }
+
+        /* Register */
+        .reg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s4); }
+        .passcard { position: relative; width: 100%; max-width: 340px; margin: 0 auto; padding: var(--s4); border: 1px solid var(--line-strong); border-radius: var(--r-md); background: var(--surface); overflow: hidden; text-align: center; }
+        .passcard .band-art { position: absolute; left: 0; right: 0; top: 0; height: 30px; background: var(--accent-wash); }
+        .passcard .head { position: relative; display: flex; justify-content: space-between; align-items: center; font-size: 11px; letter-spacing: .14em; font-weight: 700; height: 30px; margin: calc(-1 * var(--s4)) calc(-1 * var(--s4)) var(--s3); padding: 0 var(--s4); }
+        .passcard .head span { background: var(--accent-wash); padding: 2px 6px; border-radius: 3px; }
+        .passcard .head span:last-child { font-family: var(--mono); letter-spacing: 0; font-weight: 500; color: var(--accent-strong); }
+        .passcard .qr { display: inline-block; padding: 8px; background: #fff; border: 1px solid var(--line); border-radius: var(--r-sm); }
+        .passcard .qr canvas { display: none !important; }
+        .passcard .qr img { display: block; }
+        .passcard .who { margin-top: var(--s3); font-size: var(--t-lg); font-weight: 650; letter-spacing: -0.01em; }
+        .passcard .pid { font-family: var(--mono); font-size: var(--t-xs); color: var(--mute); margin-top: 2px; }
+        .passcard .signed { margin-top: var(--s2); display: inline-flex; }
+
+        /* Verified / Paid */
+        .moment { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: var(--s3); padding: var(--s6); }
+        .moment .seal { width: 148px; height: 148px; }
+        .moment h2 { font-size: var(--t-2xl); font-weight: 700; letter-spacing: -0.03em; }
+        .moment dl { display: grid; grid-template-columns: auto auto; gap: 6px var(--s6); margin: var(--s2) 0 0; font-size: var(--t-sm); text-align: left; }
+        .moment dt { color: var(--mute); } .moment dd { margin: 0; font-weight: 600; text-align: right; }
+
+        /* Pay */
+        .pay { display: grid; grid-template-columns: auto 1fr; gap: var(--s6); align-items: center; padding: var(--s2) 0; }
+        .pay .qrbox { padding: 12px; background: #fff; border: 1px solid var(--line-strong); border-radius: var(--r-md); }
+        .pay .qrbox canvas { display: none !important; } .pay .qrbox img { display: block; }
+        .pay .amt { font-size: var(--t-3xl); font-weight: 700; letter-spacing: -0.04em; line-height: 1; }
+        .pay .vpa { font-family: var(--mono); font-size: var(--t-sm); color: var(--ink-2); }
+
+        /* Bill */
+        .bill-list { flex: 1; min-height: 0; overflow: auto; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+        .bill-list > .row { flex: none; }
+        .row { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: var(--s3); align-items: center; padding: var(--s3) var(--s4); border-bottom: 1px solid var(--line); }
+        .row.flash { animation: flash 1400ms var(--ease); }
+        @keyframes flash { from { background: var(--accent-wash); } to { background: transparent; } }
+        .row .thumb { width: 44px; height: 44px; }
+        .row .name { font-size: var(--t-sm); font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .row .sub { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; font-size: var(--t-xs); color: var(--mute); }
+        .row .ctl { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+        .row .line { font-size: var(--t-md); font-weight: 650; }
+        .row .qtyline { display: flex; align-items: center; gap: var(--s2); }
+        .price-input { width: 64px; height: 24px; padding: 0 6px; border: 1px solid var(--warn); border-radius: 4px; background: var(--warn-wash); font-family: var(--mono); font-size: var(--t-xs); text-align: right; color: var(--ink); }
+        .row .rm { margin-left: var(--s3); }
+
+        .empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: var(--s2); padding: var(--s8) var(--s6); color: var(--mute); }
+        .empty .ico { display: grid; place-items: center; width: 40px; height: 40px; }
+        .empty .ico .icon { width: 26px; height: 26px; }
+        .empty h3 { color: var(--ink); font-size: var(--t-md); font-weight: 650; }
+        .empty p { font-size: var(--t-sm); max-width: 30ch; }
+
+        .totals { padding: var(--s4); border-top: 1px solid var(--line-strong); background: var(--paper); border-radius: 0 0 var(--r-md) var(--r-md); display: flex; flex-direction: column; gap: var(--s3); }
+        .totals .line { display: flex; justify-content: space-between; align-items: baseline; font-size: var(--t-sm); color: var(--mute); }
+        .totals .grand { display: flex; justify-content: space-between; align-items: baseline; }
+        .totals .grand span:first-child { font-size: var(--t-sm); font-weight: 650; }
+        .totals .grand .num { font-size: var(--t-2xl); font-weight: 700; letter-spacing: -0.04em; }
+        .est-note { display: flex; gap: var(--s2); font-size: var(--t-xs); color: var(--warn); background: var(--warn-wash); padding: var(--s2) var(--s3); border-radius: var(--r-sm); }
+
+        .guest-link { align-self: center; }
+
+        @media (max-width: 900px) {
+            html, body { height: auto; } .app { height: auto; }
+            .main { grid-template-columns: 1fr; }
+            .band { gap: var(--s3); flex-wrap: wrap; padding: var(--s2) var(--s3); height: auto; } .app { grid-template-rows: auto auto; }
+            .steps { order: 3; width: 100%; justify-content: space-between; margin: 0; } .steps li + li::before { display: none; }
+            .holder { margin-left: auto; }
+            .pay, .reg-grid { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+            .bill-list { max-height: 50vh; }
+            .cam { max-height: none; }
         }
 
-        .scanner-laser {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, transparent, #ef4444, transparent);
-            box-shadow: 0 0 12px #ef4444, 0 0 20px #ef4444;
-            animation: scanAnimation 2s infinite ease-in-out;
-            z-index: 10;
-        }
-
-        @keyframes scanAnimation {
-            0% {
-                top: 5%;
-            }
-
-            50% {
-                top: 95%;
-            }
-
-            100% {
-                top: 5%;
-            }
-        }
-
-        .scan-corner {
-            position: absolute;
-            width: 28px;
-            height: 28px;
-            border-color: #2563eb;
-            border-style: solid;
-            pointer-events: none;
-            z-index: 20;
-        }
-
-        .corner-tl {
-            top: 12px;
-            left: 12px;
-            border-width: 4px 0 0 4px;
-            border-top-left-radius: 8px;
-        }
-
-        .corner-tr {
-            top: 12px;
-            right: 12px;
-            border-width: 4px 4px 0 0;
-            border-top-right-radius: 8px;
-        }
-
-        .corner-bl {
-            bottom: 12px;
-            left: 12px;
-            border-width: 0 0 4px 4px;
-            border-bottom-left-radius: 8px;
-        }
-
-        .corner-br {
-            bottom: 12px;
-            right: 12px;
-            border-width: 0 4px 4px 0;
-            border-bottom-right-radius: 8px;
-        }
-
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 10px;
-        }
-
-        #qrcode-canvas img,
-        #qrcode-canvas canvas,
-        #user-qrcode-canvas img,
-        #user-qrcode-canvas canvas {
-            margin: 0 auto;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        @media print {
+            body * { visibility: hidden; }
+            #print-pass, #print-pass * { visibility: visible; }
+            #print-pass { position: absolute; left: 0; top: 0; box-shadow: none; max-width: 85.6mm; }
         }
     </style>
 </head>
 
-<body class="min-h-screen flex flex-col antialiased selection:bg-blue-500 selection:text-white bg-slate-50">
-
-    <!-- ================= AUTHENTICATION MODAL (SCREEN 0) ================= -->
-    <div id="auth-modal"
-        class="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-        <div
-            class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-slate-200 text-center space-y-6">
-            <div>
-                <div
-                    class="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-3 font-bold text-xl shadow-lg shadow-blue-500/30">
-                    <i class="fa-solid fa-user-check"></i>
-                </div>
-                <h2 class="text-2xl font-black text-slate-900 tracking-tight">Customer Verification</h2>
-                <p class="text-xs text-slate-500 font-medium mt-1">Scan your Personal QR or Register to continue</p>
-            </div>
-
-            <!-- Tab Switcher -->
-            <div class="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
-                <button id="auth-tab-scan" onclick="switchAuthTab('scan')"
-                    class="flex-1 py-2.5 rounded-xl text-xs font-extrabold text-blue-600 bg-white shadow-sm transition">
-                    Scan Customer QR
-                </button>
-                <button id="auth-tab-reg" onclick="switchAuthTab('reg')"
-                    class="flex-1 py-2.5 rounded-xl text-xs font-extrabold text-slate-500 transition">
-                    New Registration
-                </button>
-            </div>
-
-            <!-- TAB 1: SCAN EXISTING CUSTOMER QR -->
-            <div id="auth-box-scan" class="space-y-4">
-                <div
-                    class="bg-slate-900 rounded-2xl p-2 relative overflow-hidden border border-slate-800 min-h-[220px] flex items-center justify-center">
-                    <div id="auth-qr-reader" class="w-full h-full rounded-xl overflow-hidden"></div>
-                </div>
-                <p class="text-[11px] text-slate-400 font-medium">Show your Personal Customer QR Code to camera</p>
-            </div>
-
-            <!-- TAB 2: REGISTER NEW CUSTOMER -->
-            <div id="auth-box-reg" class="hidden space-y-4 text-left">
-                <form id="reg-form" onsubmit="handleCustomerRegistration(event)" class="space-y-3">
-                    <div>
-                        <label class="text-xs font-bold text-slate-700 block mb-1">Full Name</label>
-                        <input type="text" id="reg-name" required placeholder="e.g. Rahul Sharma"
-                            class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition">
-                    </div>
-                    <div>
-                        <label class="text-xs font-bold text-slate-700 block mb-1">Mobile Number</label>
-                        <input type="tel" id="reg-phone" pattern="[0-9]{10}" required placeholder="10-digit number"
-                            class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition">
-                    </div>
-                    <button type="submit"
-                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-extrabold py-3 px-4 rounded-xl shadow-lg shadow-blue-500/20 text-xs transition">
-                        Generate Loyalty QR
-                    </button>
-                </form>
-
-                <!-- Generated Customer QR Output -->
-                <div id="reg-qr-output" class="hidden text-center space-y-3 pt-2">
-                    <div
-                        class="bg-emerald-50 border border-emerald-200 text-emerald-800 p-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2">
-                        <i class="fa-solid fa-gift text-base text-emerald-600"></i>
-                        <span>+50 Welcome Loyalty Points Added!</span>
-                    </div>
-                    <div id="user-qrcode-canvas"
-                        class="p-2 bg-white rounded-xl shadow-inner border border-slate-200 inline-block"></div>
-                    <button onclick="completeAuthAndStart()"
-                        class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 px-4 rounded-xl shadow-lg text-xs transition">
-                        Start Shopping Now 🛒
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Top Navigation Header -->
-    <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
-        <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-            <div class="flex items-center gap-3 cursor-pointer" onclick="goToScreen(1)">
-                <div
-                    class="bg-blue-600 text-white p-2.5 rounded-xl flex items-center justify-center font-bold shadow-md shadow-blue-500/20">
-                    <i class="fa-solid fa-barcode text-xl"></i>
-                </div>
-                <div>
-                    <h1 class="text-xl font-black tracking-tight text-slate-900 leading-none">
-                        Quick<span class="text-blue-600">Scan</span> Express
-                    </h1>
-                    <p class="text-[10px] text-slate-500 font-bold tracking-wider uppercase mt-0.5">Self Checkout Kiosk
-                    </p>
-                </div>
-            </div>
-
-            <!-- Customer Profile Info Badge -->
-            <div id="header-user-badge"
-                class="flex items-center gap-2 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-full text-xs font-bold">
-                <i class="fa-solid fa-circle-user text-blue-600 text-base"></i>
-                <span id="user-name-display" class="text-slate-800">User</span>
-                <span id="user-points-badge"
-                    class="bg-blue-600 text-white px-2 py-0.5 rounded-full text-[10px] font-black">0 Pts</span>
-            </div>
-
-            <!-- Multi-step Process Indicator -->
-            <div
-                class="hidden md:flex items-center gap-2 text-xs font-bold bg-slate-100 border border-slate-200 px-3.5 py-1.5 rounded-full">
-                <span id="step-pill-1" class="text-blue-600 font-black">1. Scan</span>
-                <i class="fa-solid fa-chevron-right text-[10px] text-slate-400"></i>
-                <span id="step-pill-2" class="text-slate-400">2. Review Item</span>
-                <i class="fa-solid fa-chevron-right text-[10px] text-slate-400"></i>
-                <span id="step-pill-3" class="text-slate-400">3. Checkout & Pay</span>
-            </div>
-
-            <!-- Cart Badge Counter -->
-            <button onclick="goToFinalBillScreen()"
-                class="relative bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition active:scale-95 shadow-sm">
-                <i class="fa-solid fa-cart-shopping text-base text-blue-600"></i>
-                <span>Cart</span>
-                <span id="cart-badge-count"
-                    class="bg-blue-600 text-white px-2 py-0.5 rounded-full font-black text-xs shadow-sm">0</span>
-            </button>
-        </div>
+<body>
+<div class="app">
+    <header class="band">
+        <div class="brand"><b>RAISE</b><span>Self-checkout</span></div>
+        <ol class="steps" aria-label="Checkout progress">
+            <li id="step-1" aria-current="step"><span class="n">1</span>Pass</li>
+            <li id="step-2"><span class="n">2</span>Scan items</li>
+            <li id="step-3"><span class="n">3</span>Pay</li>
+        </ol>
+        <div class="holder" id="holder" hidden></div>
     </header>
 
-    <!-- Main Content Container -->
-    <main class="max-w-4xl mx-auto px-4 py-6 flex-1 w-full flex flex-col items-center justify-center">
-
-        <!-- ================= SCREEN 1: CAMERA BARCODE SCANNER ================= -->
-        <section id="screen-1" class="w-full flex flex-col items-center space-y-6 transition-all duration-300">
-
-            <div class="text-center space-y-1">
-                <h2 class="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
-                    Scan Product Barcode
-                </h2>
-                <p class="text-xs sm:text-sm text-slate-500 font-medium">
-                    Align the barcode inside the camera view below to add product
-                </p>
+    <main class="main">
+        <!-- LEFT: stage -->
+        <section class="card" aria-live="polite">
+            <div class="sec-head">
+                <h2 id="stage-title">Identify</h2>
+                <div class="meta" id="stage-meta"></div>
             </div>
 
-            <div
-                class="w-full max-w-md bg-white rounded-3xl p-4 shadow-xl border border-slate-200 relative overflow-hidden">
-                <div
-                    class="relative bg-slate-950 rounded-2xl overflow-hidden min-h-[260px] flex items-center justify-center border border-slate-800">
-                    <div id="reader" class="w-full h-full"></div>
-                    <div id="scanner-laser" class="scanner-laser"></div>
+            <div class="card-body" id="body-camera">
+                <div id="seg-pass" class="seg" role="tablist" aria-label="How to identify">
+                    <button role="tab" id="seg-scan" aria-selected="true">Scan my pass</button>
+                    <button role="tab" id="seg-reg" aria-selected="false">Register new</button>
+                </div>
 
-                    <div class="scan-corner corner-tl"></div>
-                    <div class="scan-corner corner-tr"></div>
-                    <div class="scan-corner corner-bl"></div>
-                    <div class="scan-corner corner-br"></div>
-
-                    <div id="camera-loading"
-                        class="absolute inset-0 bg-slate-900/90 text-white flex flex-col items-center justify-center p-6 text-center space-y-3 z-30">
-                        <i class="fa-solid fa-camera text-4xl text-blue-400 animate-bounce"></i>
-                        <p class="text-sm font-bold text-slate-100">Starting Camera Feed...</p>
-                        <p class="text-xs text-slate-400">Please grant camera permission if requested</p>
+                <div class="cam-row">
+                    <p class="cam-instruction grow" id="instruction">Hold your RAISE Pass up to the camera</p>
+                    <div class="cam-tools">
+                        <select class="select" id="cam-select" aria-label="Camera" hidden></select>
+                        <button class="icon-btn" id="btn-mirror" aria-pressed="false" title="Mirror preview" aria-label="Mirror preview"><svg data-icon="mirror"></svg></button>
+                        <button class="icon-btn" id="btn-restart" title="Restart camera" aria-label="Restart camera"><svg data-icon="refresh"></svg></button>
                     </div>
                 </div>
 
-                <div class="mt-4 flex items-center justify-between text-xs text-slate-500 px-1 font-medium">
-                    <span class="flex items-center gap-1.5">
-                        <i class="fa-solid fa-bolt text-amber-500"></i>
-                        Auto scanner active
-                    </span>
-                    <button onclick="restartCamera()"
-                        class="text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 transition">
-                        <i class="fa-solid fa-rotate-right"></i> Reset Camera
-                    </button>
+                <div class="cam" id="cam" data-mode="pass">
+                    <video id="video" playsinline muted></video>
+                    <div class="guide guide--pass"><i></i><i></i><i></i><i></i><span class="sweep"></span></div>
+                    <div class="guide guide--product"><i></i><i></i><i></i><i></i><span class="sweep"></span></div>
+                    <div class="cam-status" id="cam-status">
+                        <svg data-icon="camera"></svg>
+                        <p>Starting camera…</p>
+                    </div>
+                </div>
+
+                <div id="below-pass" class="cam-row" style="justify-content:space-between">
+                    <p class="hint" style="margin:0">Phone screen or printed card both work. Hold it 15–25 cm from the lens.</p>
+                    <button class="btn btn--ghost" id="btn-guest">Continue as guest <svg data-icon="arrow-right"></svg></button>
+                </div>
+
+                <div id="below-scan" hidden style="display:flex;flex-direction:column;gap:12px">
+                    <div class="last" id="last"><span class="thumb"><svg data-icon="barcode"></svg></span><span>Last scanned item appears here.</span></div>
+                    <div class="divider">or type the number under the barcode</div>
+                    <form class="manual" id="manual-form">
+                        <input class="field" id="manual-input" inputmode="numeric" autocomplete="off" placeholder="e.g. 8901719123870" aria-label="Barcode number">
+                        <button class="btn" type="submit">Add <span class="kbd">↵</span></button>
+                    </form>
+                    <p class="catalog-peek">Demo catalog: <code>8901719123870</code> Parle-G · <code>8901764042911</code> Thums Up · <code>8901262010016</code> Amul Butter</p>
                 </div>
             </div>
 
-            <div class="w-full max-w-md bg-white rounded-2xl p-5 shadow-lg border border-slate-200 space-y-3">
-                <p class="text-xs font-extrabold uppercase tracking-wider text-slate-500">Manual Barcode Entry:</p>
-                <div class="flex gap-2">
-                    <input type="text" id="manual-code-input" placeholder="Enter barcode number"
-                        class="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition">
-                    <button onclick="handleManualSubmit()"
-                        class="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow-sm">
-                        Submit
-                    </button>
+            <!-- Register -->
+            <div class="card-body" id="body-register" hidden>
+                <div class="seg" role="tablist">
+                    <button role="tab" id="seg2-scan" aria-selected="false">Scan my pass</button>
+                    <button role="tab" id="seg2-reg" aria-selected="true">Register new</button>
+                </div>
+                <div class="reg-grid">
+                    <form id="reg-form" style="display:flex;flex-direction:column;gap:12px">
+                        <div><label class="label" for="reg-name">Full name</label><input class="field" id="reg-name" required maxlength="40" autocomplete="off" placeholder="Rahul Sharma"></div>
+                        <div><label class="label" for="reg-phone">Mobile number</label><input class="field" id="reg-phone" required inputmode="numeric" pattern="[0-9]{10}" maxlength="10" autocomplete="off" placeholder="10 digits"><p class="hint">Only the last 4 digits go into your pass.</p></div>
+                        <button class="btn btn--primary btn--lg" type="submit">Create my pass</button>
+                    </form>
+                    <div id="reg-out">
+                        <div class="empty" style="padding:var(--s4)"><div class="ico"><svg data-icon="qr"></svg></div><h3>Your pass appears here</h3><p>It's signed and encrypted, so it can be printed or saved.</p></div>
+                    </div>
                 </div>
             </div>
 
-            <div
-                class="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-4 shadow-xl flex items-center justify-between">
-                <div>
-                    <p class="text-[11px] text-slate-500 font-bold uppercase tracking-wide">Cart Summary</p>
-                    <p class="text-lg font-black text-blue-600" id="scanner-bottom-count">0 Items (₹0)</p>
-                </div>
-                <button onclick="goToFinalBillScreen()"
-                    class="bg-blue-600 hover:bg-blue-700 text-white font-black px-5 py-2.5 rounded-xl text-sm transition shadow-lg shadow-blue-500/20 flex items-center gap-2 active:scale-95">
-                    <span>View Final Bill & Pay</span>
-                    <i class="fa-solid fa-arrow-right text-xs"></i>
-                </button>
+            <!-- Verified -->
+            <div class="moment" id="body-verified" hidden>
+                <div id="verified-seal"></div>
+                <h2 id="verified-name">Welcome</h2>
+                <p class="mute">Pass signature verified</p>
             </div>
 
+            <!-- Pay -->
+            <div class="card-body" id="body-pay" hidden>
+                <div class="pay">
+                    <div class="qrbox" id="upi-qr"></div>
+                    <div style="display:flex;flex-direction:column;gap:12px">
+                        <div><p class="mute" style="font-size:var(--t-sm)">Total to pay</p><p class="amt num" id="pay-amt">₹0</p></div>
+                        <p style="font-size:var(--t-md);font-weight:550">Scan with any UPI app: GPay, PhonePe, Paytm, BHIM</p>
+                        <p class="vpa" id="pay-vpa"></p>
+                    </div>
+                </div>
+                <div class="cam-row" style="margin-top:auto;padding-top:var(--s4);border-top:1px solid var(--line)">
+                    <button class="btn" id="btn-back"><svg data-icon="arrow-left"></svg> Back to cart</button>
+                    <span class="grow"></span>
+                    <button class="btn" id="btn-demo-paid" title="No payment gateway is connected in this demo">Demo: mark as paid</button>
+                </div>
+            </div>
+
+            <!-- Paid -->
+            <div class="moment" id="body-paid" hidden>
+                <div id="paid-seal"></div>
+                <h2>Paid. Thank you!</h2>
+                <dl>
+                    <dt>Order</dt><dd class="num" id="paid-order"></dd>
+                    <dt>Amount</dt><dd class="num" id="paid-amt"></dd>
+                    <dt>Customer</dt><dd id="paid-name"></dd>
+                </dl>
+                <div class="cam-row" style="margin-top:var(--s3)">
+                    <span class="tag"><svg data-icon="refresh"></svg>Next customer in <b class="num" id="count">10</b>s</span>
+                    <button class="btn" id="btn-pause"><svg data-icon="pause"></svg> Pause</button>
+                    <button class="btn btn--primary" id="btn-new">New customer</button>
+                </div>
+            </div>
         </section>
 
-        <!-- ================= SCREEN 2: PRODUCT CONFIRMATION & QUANTITY ================= -->
-        <section id="screen-2" class="w-full max-w-2xl hidden transition-all duration-300 space-y-6">
-
-            <div class="flex items-center justify-between">
-                <button onclick="goToScreen(1)"
-                    class="bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-2">
-                    <i class="fa-solid fa-arrow-left text-blue-600"></i>
-                    <span>Cancel / Rescan</span>
-                </button>
-                <span
-                    class="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 rounded-full flex items-center gap-1.5">
-                    <i class="fa-solid fa-circle-check text-emerald-600"></i> Item Scanned
-                </span>
+        <!-- RIGHT: bill -->
+        <aside class="card" aria-label="Bill">
+            <div class="sec-head">
+                <h2>Bill</h2>
+                <div class="meta"><span class="tag" id="bill-count">0 items</span></div>
             </div>
-
-            <div class="bg-white rounded-3xl p-6 shadow-xl border border-slate-200">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                    <div
-                        class="bg-slate-50 border border-slate-200 rounded-2xl p-6 flex items-center justify-center relative min-h-[220px]">
-                        <img id="scanned-item-img" src="" alt="Product Image"
-                            class="max-h-48 object-contain rounded-lg drop-shadow-sm">
-                        <span id="scanned-item-badge"
-                            class="absolute top-3 left-3 bg-blue-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-md uppercase tracking-wider shadow-sm">
-                            Scanned
-                        </span>
-                    </div>
-
-                    <div class="space-y-5">
-                        <div>
-                            <span id="scanned-item-brand"
-                                class="text-xs font-black text-blue-600 uppercase tracking-widest block">BRAND</span>
-                            <h3 id="scanned-item-title" class="text-xl font-extrabold text-slate-900 mt-1 leading-snug">
-                                Product Title Here</h3>
-                            <p class="text-xs text-slate-500 font-mono mt-1">Unit Rate: <span
-                                    id="scanned-item-unit-rate" class="text-slate-900 font-bold">₹0</span> / piece</p>
-                        </div>
-
-                        <div class="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-3">
-                            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block text-center">
-                                Select Item Quantity
-                            </label>
-
-                            <div class="flex items-center justify-center gap-4">
-                                <button onclick="changeCurrentItemQty(-1)"
-                                    class="w-12 h-12 bg-white hover:bg-slate-100 active:scale-95 border border-slate-300 rounded-xl font-black text-xl text-blue-600 flex items-center justify-center transition shadow-sm">
-                                    <i class="fa-solid fa-minus"></i>
-                                </button>
-                                <span id="scanned-item-qty"
-                                    class="w-16 text-center font-black text-2xl text-slate-900 font-mono bg-white border border-slate-300 py-1.5 rounded-xl shadow-inner">1</span>
-                                <button onclick="changeCurrentItemQty(1)"
-                                    class="w-12 h-12 bg-white hover:bg-slate-100 active:scale-95 border border-slate-300 rounded-xl font-black text-xl text-blue-600 flex items-center justify-center transition shadow-sm">
-                                    <i class="fa-solid fa-plus"></i>
-                                </button>
-                            </div>
-                        </div>
-
-                        <div
-                            class="flex justify-between items-center bg-blue-50 border border-blue-200 px-4 py-3 rounded-xl">
-                            <span class="text-xs font-bold text-blue-900 uppercase">Item Subtotal:</span>
-                            <span id="scanned-item-subtotal"
-                                class="text-2xl font-black text-blue-600 font-mono">₹0</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="mt-8 pt-6 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <button onclick="saveCurrentItemAndScanMore()"
-                        class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-extrabold py-3.5 px-4 rounded-xl shadow-sm transition flex items-center justify-center gap-2 active:scale-95 text-sm">
-                        <i class="fa-solid fa-plus text-blue-600"></i>
-                        <span>Add & Scan Next Item</span>
-                    </button>
-
-                    <button onclick="saveCurrentItemAndGoCheckout()"
-                        class="bg-blue-600 hover:bg-blue-700 text-white font-black py-3.5 px-4 rounded-xl shadow-lg shadow-blue-500/20 transition flex items-center justify-center gap-2 active:scale-95 text-sm">
-                        <i class="fa-solid fa-cart-check"></i>
-                        <span>Go to Final Bill 🛒</span>
-                    </button>
-                </div>
+            <ul class="bill-list" id="bill-list"></ul>
+            <div class="totals">
+                <div id="est-note" class="est-note" hidden><svg data-icon="alert"></svg><span></span></div>
+                <div class="line"><span>Subtotal</span><span class="num" id="subtotal">₹0</span></div>
+                <div class="grand"><span>Total <span class="mute" style="font-weight:400">(कुल राशि)</span></span><span class="num" id="total">₹0</span></div>
+                <button class="btn btn--primary btn--lg btn--block" id="btn-pay" disabled>Pay ₹0 <svg data-icon="arrow-right"></svg></button>
             </div>
-
-        </section>
-
-        <!-- ================= SCREEN 3: FINAL BILL & UPI PAYMENT ================= -->
-        <section id="screen-3" class="w-full max-w-3xl hidden transition-all duration-300 space-y-6">
-
-            <div class="flex items-center justify-between">
-                <button onclick="goToScreen(1)"
-                    class="bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-xs shadow-sm transition flex items-center gap-2">
-                    <i class="fa-solid fa-plus text-blue-600"></i>
-                    <span>+ Scan More Products</span>
-                </button>
-
-                <span
-                    class="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-3.5 py-1.5 rounded-full flex items-center gap-1.5">
-                    <i class="fa-solid fa-receipt text-blue-600"></i> Final Order Review
-                </span>
-            </div>
-
-            <div class="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
-                <div class="bg-slate-50 border-b border-slate-200 px-6 py-4 flex justify-between items-center">
-                    <h3 class="font-extrabold text-lg text-slate-900 flex items-center gap-2">
-                        <i class="fa-solid fa-basket-shopping text-blue-600"></i>
-                        <span>Scanned Items Summary</span>
-                    </h3>
-                    <span id="bill-total-items-badge"
-                        class="text-xs bg-white border border-slate-300 px-3 py-1 rounded-full font-bold text-slate-700 shadow-sm">0
-                        Items</span>
-                </div>
-
-                <div id="cart-items-container" class="p-4 sm:p-6 divide-y divide-slate-100 space-y-4"></div>
-
-                <div class="bg-slate-50 border-t border-slate-200 p-6 space-y-3">
-                    <div class="flex justify-between text-xs sm:text-sm text-slate-600 font-semibold">
-                        <span>Items Subtotal</span>
-                        <span id="bill-subtotal" class="font-bold text-slate-900">₹0</span>
-                    </div>
-
-                    <div id="loyalty-discount-row"
-                        class="flex justify-between text-xs sm:text-sm text-emerald-600 font-semibold hidden">
-                        <span>Loyalty Points Discount</span>
-                        <span id="bill-loyalty-discount" class="font-bold">-₹0</span>
-                    </div>
-
-                    <div class="border-t border-dashed border-slate-300 pt-3 flex justify-between items-center">
-                        <div>
-                            <span class="text-sm font-black uppercase tracking-wider text-slate-900 block">Grand Total
-                                Payable</span>
-                            <span class="text-xs text-slate-500">(कुल भुगतान राशि)</span>
-                        </div>
-                        <span id="bill-grand-total" class="text-3xl font-black text-blue-600 font-mono">₹0</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- STANDARD UPI QR PAYMENT SECTION -->
-            <div class="bg-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-200 text-center space-y-6">
-                <div>
-                    <span
-                        class="bg-blue-50 text-blue-700 border border-blue-200 text-xs font-black px-3.5 py-1.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1.5">
-                        <i class="fa-solid fa-qrcode text-blue-600"></i> UPI Instant Payment
-                    </span>
-                    <h3 class="text-2xl font-black text-slate-900 mt-3">Scan & Pay via Any UPI App</h3>
-                    <p class="text-xs text-slate-500 font-medium">Pay using Paytm, Google Pay, PhonePe, or BHIM</p>
-                </div>
-
-                <div
-                    class="flex flex-col items-center justify-center bg-slate-50 p-6 rounded-2xl border border-slate-200 max-w-sm mx-auto shadow-inner">
-                    <div id="qrcode-canvas" class="p-3 bg-white rounded-2xl shadow-md border border-slate-200"></div>
-                    <div
-                        class="mt-4 flex items-center gap-2 text-xs text-slate-600 font-mono bg-white px-3.5 py-1.5 rounded-full border border-slate-300 shadow-sm">
-                        <i class="fa-solid fa-wallet text-blue-600"></i>
-                        <span>Merchant VPA: <strong class="text-slate-900">storeadmin@upi</strong></span>
-                    </div>
-                </div>
-
-                <div class="flex justify-center items-center gap-4 text-slate-500 text-xs font-bold">
-                    <span class="flex items-center gap-1"><i
-                            class="fa-brands fa-google-pay text-base text-blue-600"></i> GPay</span>
-                    <span class="flex items-center gap-1"><i
-                            class="fa-solid fa-mobile-screen-button text-purple-600"></i> PhonePe</span>
-                    <span class="flex items-center gap-1"><i class="fa-solid fa-wallet text-sky-500"></i> Paytm</span>
-                </div>
-
-                <button onclick="simulatePaymentSuccess()"
-                    class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 px-6 rounded-2xl shadow-xl shadow-emerald-600/20 transition flex items-center justify-center gap-2 active:scale-95 text-base">
-                    <i class="fa-solid fa-circle-check text-lg"></i>
-                    <span>Simulate Successful Payment</span>
-                </button>
-            </div>
-
-        </section>
-
+        </aside>
     </main>
+</div>
 
-    <!-- Payment Success Modal -->
-    <div id="payment-modal"
-        class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
-        <div
-            class="bg-white rounded-3xl max-w-sm w-full p-6 sm:p-8 text-center space-y-5 shadow-2xl border border-slate-200 transform transition-all relative">
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-            <div id="modal-countdown-banner"
-                class="bg-blue-50 border border-blue-200 text-blue-800 rounded-2xl py-2 px-3 flex items-center justify-between text-xs font-bold">
-                <span class="flex items-center gap-1.5">
-                    <i class="fa-solid fa-rotate-right animate-spin text-blue-600"></i>
-                    Auto reload in: <strong id="countdown-seconds" class="font-mono text-blue-600 text-sm">10</strong>s
-                </span>
-                <button onclick="pauseAutoResetTimer()" id="pause-timer-btn"
-                    class="bg-white hover:bg-slate-100 text-slate-700 text-[10px] px-2 py-1 rounded-lg border border-slate-300 transition shadow-sm">
-                    Pause Timer
-                </button>
-            </div>
+<script src="vendor/zxing-reader.js"></script>
+<script src="vendor/qrcode.min.js"></script>
+<script src="shared.js"></script>
+<script src="pass.js"></script>
+<script src="catalog.js"></script>
+<script src="scanner.js"></script>
+<script>
+(() => {
+    const UI = RAISEUI, $ = id => document.getElementById(id);
+    const MERCHANT_VPA = "storeadmin@upi"; // demo VPA: replace with the store's real one
+    const MERCHANT_NAME = "RAISE Store";
+    UI.hydrateIcons();
 
-            <div
-                class="w-20 h-20 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-full flex items-center justify-center mx-auto text-4xl shadow-md animate-bounce">
-                <i class="fa-solid fa-check"></i>
-            </div>
+    let stage = "pass";           // pass | register | verified | scan | pay | paid
+    let user = null;              // { id, name } or guest
+    let cart = [];                // { barcode,title,brand,price,image,qty,source,estimated }
+    let flashCode = null;
+    let countdown = null, countLeft = 10;
 
-            <div>
-                <h3 class="text-2xl font-black text-slate-900">Payment Received!</h3>
-                <p class="text-xs text-slate-500 mt-1">Order #<span id="modal-order-id"
-                        class="font-mono font-bold text-blue-600">1001</span> confirmed</p>
-            </div>
+    // ---------- Scanner ----------
+    let lastSeen = performance.now(), tipShown = false;
+    const scanner = new RAISEScanner($("video"), {
+        onDetect: (text) => (lastSeen = performance.now(), stage === "pass" ? onPassText(text) : stage === "scan" ? addByBarcode(text) : null),
+        onStatus: onCameraStatus
+    });
 
-            <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs space-y-2 text-left">
-                <div class="flex justify-between"><span class="text-slate-500">Amount Paid:</span><span
-                        id="modal-total-paid" class="font-bold text-slate-900 font-mono">₹0</span></div>
-                <div class="flex justify-between"><span class="text-slate-500">Customer:</span><span
-                        id="modal-user-name" class="font-bold text-slate-900">User</span></div>
-                <div class="flex justify-between"><span class="text-slate-500">Status:</span><span
-                        class="font-bold text-emerald-600">SUCCESSFUL <i class="fa-solid fa-circle-check"></i></span>
-                </div>
-            </div>
+    // No read for 8s while scanning: tell the shopper what actually helps a webcam.
+    scanner.onMiss = () => {
+        if (stage !== "scan" || tipShown || performance.now() - lastSeen < 8000) return;
+        tipShown = true;
+        $("instruction").textContent = "Hold it flat, 20–30 cm away, no glare. Or type the number below.";
+    };
 
-            <button onclick="startNewOrder()"
-                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-extrabold py-3.5 px-6 rounded-xl shadow-lg shadow-blue-500/20 transition text-sm active:scale-95 flex items-center justify-center gap-2">
-                <i class="fa-solid fa-rotate-right"></i>
-                <span>Start Next Scan / New Customer </span>
-            </button>
-        </div>
-    </div>
-
-    <!-- Toast Notification -->
-    <div id="toast"
-        class="fixed bottom-6 right-6 bg-slate-900 text-white px-5 py-3.5 rounded-2xl shadow-2xl z-50 transform translate-y-24 opacity-0 transition-all duration-300 flex items-center gap-3 border border-slate-800">
-        <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400 text-xl"></i>
-        <span id="toast-message" class="text-sm font-semibold">Notification message</span>
-    </div>
-
-    <script>
-        // BARCODE LOOKUP API KEY (Paste your key here from barcodelookup.com/api)
-        const BARCODE_LOOKUP_API_KEY = "68sc4ozm7a9i4hq5t7sjvb2sc7zzkw";
-
-        // Real Indian FMCG Supermarket (G-Mart / D-Mart) EAN-13 Barcode Database
-        const productsDatabase = [
-            { barcode: "8901058852310", title: "Maggi 2-Min Masala Noodles (70g)", brand: "Nestle Maggi", price: 14, image: "https://images.unsplash.com/photo-1612929633738-8fe44f7ec841?w=600&auto=format&fit=crop&q=80" },
-            { barcode: "8901491000017", title: "Lay's India's Magic Masala Chips (50g)", brand: "Lay's", price: 20, image: "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=600&auto=format&fit=crop&q=80" },
-            { barcode: "8901262150050", title: "Tata Salt Evaporated Iodised Salt (1kg)", brand: "Tata", price: 28, image: "https://images.unsplash.com/photo-1518110168401-f2877ee2c085?w=600&auto=format&fit=crop&q=80" },
-            { barcode: "8901063001237", title: "Parle-G Gold Biscuits (250g)", brand: "Parle", price: 30, image: "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=600&auto=format&fit=crop&q=80" },
-            { barcode: "8901030703810", title: "Amul Butter Pasteurised (100g)", brand: "Amul", price: 60, image: "https://images.unsplash.com/photo-1589985270826-4b7bb135bc9d?w=600&auto=format&fit=crop&q=80" },
-            { barcode: "8901764012204", title: "Thums Up Soft Drink Bottle (750ml)", brand: "Thums Up", price: 40, image: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=600&auto=format&fit=crop&q=80" },
-            { barcode: "8901030026210", title: "Brooke Bond Red Label Tea (250g)", brand: "Red Label", price: 140, image: "https://images.unsplash.com/photo-1576092768241-dec231879fc3?w=600&auto=format&fit=crop&q=80" },
-            { barcode: "8901030340801", title: "Dove Cream Beauty Bathing Soap Bar (100g)", brand: "Dove", price: 65, image: "https://images.unsplash.com/photo-1607006344380-b6775a0824a7?w=600&auto=format&fit=crop&q=80" },
-            { barcode: "8901058000100", title: "Nescafe Classic Instant Coffee Jar (50g)", brand: "Nescafe", price: 185, image: "https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=600&auto=format&fit=crop&q=80" },
-            { barcode: "8901030800010", title: "Surf Excel Easy Wash Powder (1kg)", brand: "Surf Excel", price: 140, image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=600&auto=format&fit=crop&q=80" }
-        ];
-
-        // Global State variables
-        let cart = [];
-        let currentScannedItem = null;
-        let html5QrCode = null;
-        let authHtml5QrCode = null;
-        let qrCodeInstance = null;
-        let autoResetInterval = null;
-        let countdownSeconds = 10;
-        let isProcessingScan = false;
-        let isCameraTransitioning = false;
-
-        // Current Active User State
-        let activeUser = null;
-
-        // Initialize App
-        window.onload = function () {
-            initAuthCustomerScanner();
-            updateCartSummaryUI();
-        };
-
-        // ================= AUTHENTICATION MODAL LOGIC =================
-        function switchAuthTab(tab) {
-            const scanBtn = document.getElementById('auth-tab-scan');
-            const regBtn = document.getElementById('auth-tab-reg');
-            const scanBox = document.getElementById('auth-box-scan');
-            const regBox = document.getElementById('auth-box-reg');
-
-            if (tab === 'scan') {
-                scanBtn.className = "flex-1 py-2.5 rounded-xl text-xs font-extrabold text-blue-600 bg-white shadow-sm transition";
-                regBtn.className = "flex-1 py-2.5 rounded-xl text-xs font-extrabold text-slate-500 transition";
-                scanBox.classList.remove('hidden');
-                regBox.classList.add('hidden');
-                initAuthCustomerScanner();
-            } else {
-                regBtn.className = "flex-1 py-2.5 rounded-xl text-xs font-extrabold text-blue-600 bg-white shadow-sm transition";
-                scanBtn.className = "flex-1 py-2.5 rounded-xl text-xs font-extrabold text-slate-500 transition";
-                regBox.classList.remove('hidden');
-                scanBox.classList.add('hidden');
-                stopAuthCustomerScanner();
-            }
+    function onCameraStatus(state, detail) {
+        const el = $("cam-status");
+        if (state === "live") {
+            el.hidden = true;
+            const v = $("video");
+            if (v.videoWidth) $("cam").style.aspectRatio = v.videoWidth + " / " + v.videoHeight;
+            populateCameras(detail);
+        } else if (state === "starting") {
+            el.hidden = false;
+            el.innerHTML = UI.icon("camera") + "<p>Starting camera…</p>";
+        } else {
+            el.hidden = false;
+            el.innerHTML = UI.icon("video-off") + `<p>${UI.esc(detail)}</p><button class="btn" id="btn-retry">Retry camera</button><p class="mute" style="font-size:13px;color:#9fb2a8">You can still type barcode numbers manually.</p>`;
+            $("btn-retry").onclick = () => startCamera();
         }
+    }
+    $("video").addEventListener("loadedmetadata", () => {
+        const v = $("video"); $("cam").style.aspectRatio = v.videoWidth + " / " + v.videoHeight;
+    });
 
-        async function initAuthCustomerScanner() {
-            await stopAuthCustomerScanner();
+    async function populateCameras(activeLabel) {
+        const cams = await scanner.listCameras();
+        const sel = $("cam-select");
+        if (cams.length < 2) { sel.hidden = true; return; }
+        sel.hidden = false;
+        sel.innerHTML = cams.map((c, i) => `<option value="${UI.esc(c.deviceId)}" ${c.deviceId === scanner.deviceId ? "selected" : ""}>${UI.esc(c.label || "Camera " + (i + 1))}</option>`).join("");
+    }
+    $("cam-select").onchange = e => { UI.store("raise_cam", e.target.value); startCamera(e.target.value); };
+    $("btn-restart").onclick = () => startCamera($("cam-select").value || undefined);
+    $("btn-mirror").onclick = e => {
+        const on = e.currentTarget.getAttribute("aria-pressed") !== "true";
+        e.currentTarget.setAttribute("aria-pressed", on);
+        $("cam").classList.toggle("is-mirrored", on);
+        UI.store("raise_mirror", on);
+    };
+    if (UI.store("raise_mirror")) { $("btn-mirror").setAttribute("aria-pressed", "true"); $("cam").classList.add("is-mirrored"); }
 
-            const qrContainer = document.getElementById("auth-qr-reader");
-            if (!qrContainer) return;
+    function startCamera(deviceId) { return scanner.start(deviceId || UI.store("raise_cam") || undefined); }
 
-            authHtml5QrCode = new Html5Qrcode("auth-qr-reader");
-            const config = { fps: 15, qrbox: { width: 180, height: 180 } };
+    // ---------- Stage machine ----------
+    const PANES = ["body-camera", "body-register", "body-verified", "body-pay", "body-paid"];
+    function show(pane) { PANES.forEach(p => { $(p).hidden = p !== pane; }); }
 
-            try {
-                await authHtml5QrCode.start(
-                    { facingMode: "user" },
-                    config,
-                    (qrData) => {
-                        try {
-                            const userData = JSON.parse(qrData);
-                            activeUser = userData;
-                            stopAuthCustomerScanner();
-                            showToast(`Welcome back, ${userData.name}!`, "success");
-                            completeAuthAndStart();
-                        } catch (e) {
-                            showToast("Invalid Customer QR!", "warning");
-                        }
-                    },
-                    () => { }
-                );
-            } catch (err) {
-                console.warn("Front Camera unavailable, trying default...", err);
-                try {
-                    await authHtml5QrCode.start(
-                        { facingMode: "environment" },
-                        config,
-                        (qrData) => {
-                            try {
-                                const userData = JSON.parse(qrData);
-                                activeUser = userData;
-                                stopAuthCustomerScanner();
-                                showToast(`Welcome back, ${userData.name}!`, "success");
-                                completeAuthAndStart();
-                            } catch (e) {
-                                showToast("Invalid Customer QR!", "warning");
-                            }
-                        },
-                        () => { }
-                    );
-                } catch (err2) {
-                    console.error("Camera fail:", err2);
-                }
-            }
+    function setStage(next) {
+        stage = next;
+        const camMode = next === "pass" ? "pass" : "product";
+        $("cam").dataset.mode = camMode;
+        scanner.setMode(camMode);
+
+        const live = next === "pass" || next === "scan";
+        live ? scanner.resume() : scanner.pause();
+        $("cam").classList.toggle("is-paused", !live);
+
+        $("seg-pass").hidden = next !== "pass";
+        $("below-pass").hidden = next !== "pass";
+        $("below-scan").hidden = next !== "scan";
+        $("below-scan").style.display = next === "scan" ? "flex" : "none";
+
+        if (next === "pass") { show("body-camera"); $("stage-title").textContent = "Identify"; $("instruction").textContent = "Hold your RAISE Pass up to the camera"; }
+        if (next === "register") { show("body-register"); $("stage-title").textContent = "Register"; }
+        if (next === "verified") { show("body-verified"); $("stage-title").textContent = "Verified"; }
+        if (next === "scan") { show("body-camera"); $("stage-title").textContent = "Scan items"; $("instruction").textContent = "Hold a barcode up to the camera"; tipShown = false; lastSeen = performance.now(); scanner.resetCooldown(); }
+        if (next === "pay") { show("body-pay"); $("stage-title").textContent = "Pay"; }
+        if (next === "paid") { show("body-paid"); $("stage-title").textContent = "Complete"; }
+
+        const stepOf = { pass: 1, register: 1, verified: 1, scan: 2, pay: 3, paid: 3 }[next];
+        [1, 2, 3].forEach(n => {
+            const li = $("step-" + n);
+            li.classList.toggle("done", n < stepOf || next === "paid");
+            if (n === stepOf && next !== "paid") li.setAttribute("aria-current", "step"); else li.removeAttribute("aria-current");
+        });
+        $("stage-meta").innerHTML = "";
+        render();
+        if (next === "scan") $("manual-input").focus({ preventScroll: true });
+    }
+
+    // ---------- Pass ----------
+    async function onPassText(text) {
+        try {
+            const p = await RAISEPass.open(text);
+            UI.beep();
+            verified({ id: p.id, name: p.n });
+        } catch (e) {
+            UI.beep(330, 160);
+            UI.toast(e.message, "warn");
         }
+    }
 
-        async function stopAuthCustomerScanner() {
-            if (authHtml5QrCode) {
-                try {
-                    if (authHtml5QrCode.isScanning) {
-                        await authHtml5QrCode.stop();
-                    }
-                    authHtml5QrCode.clear();
-                } catch (e) {
-                    console.warn("Auth Scanner clear error:", e);
-                }
-                authHtml5QrCode = null;
-            }
-        }
+    function verified(u) {
+        user = u;
+        $("verified-seal").innerHTML = UI.sealSVG(148);
+        $("verified-name").textContent = "Welcome, " + u.name.split(" ")[0];
+        setStage("verified");
+        UI.stampSeal($("verified-seal").querySelector(".seal"));
+        const h = $("holder");
+        h.hidden = false;
+        h.innerHTML = UI.icon("shield") + `<span>${UI.esc(u.name)}</span><span class="pid">${UI.esc(RAISEPass.formatPassId(u.id))}</span>`;
+        setTimeout(() => stage === "verified" && setStage("scan"), 1700);
+    }
 
-        function handleCustomerRegistration(e) {
-            e.preventDefault();
-            const name = document.getElementById('reg-name').value;
-            const phone = document.getElementById('reg-phone').value;
+    $("btn-guest").onclick = () => {
+        user = { id: null, name: "Guest" };
+        const h = $("holder"); h.hidden = false; h.innerHTML = UI.icon("user") + "<span>Guest</span>";
+        setStage("scan");
+    };
+    const toPassTab = () => setStage("pass"), toRegTab = () => setStage("register");
+    $("seg-scan").onclick = toPassTab; $("seg-reg").onclick = toRegTab;
+    $("seg2-scan").onclick = toPassTab; $("seg2-reg").onclick = toRegTab;
 
-            activeUser = {
-                name: name,
-                phone: phone,
-                loyaltyPoints: 50
+    let lastIssued = null;
+    $("reg-form").onsubmit = async e => {
+        e.preventDefault();
+        try {
+            const { token, payload } = await RAISEPass.seal({ name: $("reg-name").value.trim(), phone: $("reg-phone").value });
+            lastIssued = { token, payload };
+            $("reg-out").innerHTML = `
+              <div class="passcard" id="print-pass">
+                <div class="band-art">${UI.waveBandSVG(340, 30, 6)}</div>
+                <div class="head"><span>RAISE PASS</span><span>${UI.esc(RAISEPass.formatPassId(payload.id))}</span></div>
+                <div class="qr" id="pass-qr"></div>
+                <p class="who">${UI.esc(payload.n)}</p>
+                <p class="pid">••• ${UI.esc(payload.m)}</p>
+                <span class="tag tag--ok signed">${UI.icon("shield")}Signed + encrypted</span>
+              </div>
+              <div class="cam-row" style="margin-top:12px;justify-content:center;flex-wrap:wrap">
+                <button class="btn" id="btn-print">${UI.icon("printer")} Print</button>
+                <button class="btn" id="btn-save">${UI.icon("download")} Save image</button>
+                <button class="btn btn--primary" id="btn-start">Start shopping ${UI.icon("arrow-right")}</button>
+              </div>`;
+            new QRCode($("pass-qr"), { text: token, width: 188, height: 188, correctLevel: QRCode.CorrectLevel.M });
+            $("btn-print").onclick = () => window.print();
+            $("btn-save").onclick = () => {
+                const img = $("pass-qr").querySelector("img");
+                const a = document.createElement("a"); a.href = img.src; a.download = "raise-pass.png"; a.click();
             };
+            $("btn-start").onclick = () => verified({ id: payload.id, name: payload.n });
+        } catch (err) { UI.toast(err.message, "warn"); }
+    };
 
-            const userQrJson = JSON.stringify(activeUser);
-
-            document.getElementById('user-qrcode-canvas').innerHTML = "";
-            new QRCode(document.getElementById('user-qrcode-canvas'), {
-                text: userQrJson,
-                width: 140,
-                height: 140
-            });
-
-            document.getElementById('reg-form').classList.add('hidden');
-            document.getElementById('reg-qr-output').classList.remove('hidden');
-        }
-
-        async function completeAuthAndStart() {
-            if (!activeUser) {
-                showToast("Authentication required!", "warning");
-                return;
-            }
-            await stopAuthCustomerScanner();
-            document.getElementById('auth-modal').classList.add('hidden');
-            document.getElementById('user-name-display').textContent = activeUser.name;
-            document.getElementById('user-points-badge').textContent = `${activeUser.loyaltyPoints} Pts`;
-            startCameraScanner();
-        }
-
-        // ================= PRODUCT SCANNER & RENDERERS =================
-        async function startCameraScanner() {
-            if (isCameraTransitioning) return;
-            const overlay = document.getElementById('camera-loading');
-            if (overlay) overlay.classList.remove('hidden');
-
-            if (!html5QrCode) {
-                html5QrCode = new Html5Qrcode("reader");
-            }
-
-            try {
-                const state = typeof Html5QrcodeScannerState !== "undefined" ? html5QrCode.getState() : null;
-                if (state === 2) {
-                    if (overlay) overlay.classList.add('hidden');
-                    isProcessingScan = false;
-                    return;
-                }
-                if (state === 3) {
-                    html5QrCode.resume();
-                    if (overlay) overlay.classList.add('hidden');
-                    isProcessingScan = false;
-                    return;
-                }
-
-                isCameraTransitioning = true;
-                const config = {
-                    fps: 15,
-                    qrbox: { width: 240, height: 180 },
-                    aspectRatio: 1.0,
-                    formatsToSupport: [
-                        Html5QrcodeSupportedFormats.EAN_13,
-                        Html5QrcodeSupportedFormats.CODE_128,
-                        Html5QrcodeSupportedFormats.QR_CODE
-                    ]
-                };
-
-                await html5QrCode.start(
-                    { facingMode: "environment" },
-                    config,
-                    (decodedText) => handleProductScanned(decodedText),
-                    () => { }
-                );
-                if (overlay) overlay.classList.add('hidden');
-            } catch (err) {
-                console.warn("Camera start error:", err);
-                if (overlay) {
-                    overlay.innerHTML = `
-                        <i class="fa-solid fa-video-slash text-3xl text-amber-400"></i>
-                        <p class="text-sm font-bold text-slate-200">Camera Permission Required</p>
-                        <p class="text-xs text-slate-400">Enter barcode number manually below</p>
-                    `;
-                }
-            } finally {
-                isCameraTransitioning = false;
-                isProcessingScan = false;
-            }
-        }
-
-        async function stopCameraScanner() {
-            if (isCameraTransitioning) return;
-            isCameraTransitioning = true;
-
-            try {
-                if (html5QrCode) {
-                    const state = typeof Html5QrcodeScannerState !== "undefined" ? html5QrCode.getState() : null;
-                    if (state === 2 || state === 3 || html5QrCode.isScanning) {
-                        await html5QrCode.stop();
-                    }
-                }
-            } catch (err) {
-                console.warn("Camera stop error ignored:", err);
-            } finally {
-                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                    try {
-                        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                        stream.getTracks().forEach(track => track.stop());
-                    } catch (e) { }
-                }
-                isCameraTransitioning = false;
-            }
-        }
-
-        async function restartCamera() {
-            await stopCameraScanner();
-            await startCameraScanner();
-        }
-
-        // Fetch Live Product details from Barcode Lookup API
-        // Multi-Source 100% Free Live Automatic API Fetcher (No API Key Required)
-async function fetchLiveProductData(barcode) {
-    const cleanCode = barcode.trim();
-
-    // Source 1: Open Food Facts API (Best for Mountain Dew, Cold Drinks & FMCG)
-    try {
-        const offRes = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(cleanCode)}.json`);
-        if (offRes.ok) {
-            const offData = await offRes.json();
-            if (offData && offData.status === 1 && offData.product) {
-                const p = offData.product;
-                const title = p.product_name || p.product_name_en || p.generic_name || `Scanned Item #${cleanCode.slice(-4)}`;
-                const brand = p.brands || (p.brands_tags && p.brands_tags[0]) || "FMCG Brand";
-                const image = p.image_front_url || p.image_url || "https://images.unsplash.com/photo-1542838132-92c53300491e?w=600&auto=format&fit=crop&q=80";
-                
-                return {
-                    barcode: cleanCode,
-                    title: title,
-                    brand: brand.toUpperCase(),
-                    price: 40, // Retail price
-                    image: image
-                };
-            }
-        }
-    } catch (e) {
-        console.warn("OpenFoodFacts API error:", e);
+    // ---------- Cart ----------
+    async function addByBarcode(code) {
+        code = String(code).trim();
+        if (!code) return;
+        const known = cart.find(i => i.barcode === (code.length === 12 ? "0" + code : code));
+        UI.beep(); tipShown = false; lastSeen = performance.now(); $("instruction").textContent = "Hold a barcode up to the camera";
+        if (known) { known.qty++; flashCode = known.barcode; setLast(known, true); render(); return; }
+        UI.toast("Looking up " + code + "…", "busy");
+        const p = await RAISECatalog.lookupProduct(code);
+        const dup = cart.find(i => i.barcode === p.barcode);
+        if (dup) dup.qty++; else cart.push({ ...p, qty: 1 });
+        flashCode = p.barcode;
+        setLast(p, false);
+        UI.toast(p.source === "unknown" ? "Item not found. Added as unlisted, please check the price." : "Added " + p.title, p.source === "unknown" ? "warn" : "ok");
+        render();
     }
 
-    // Source 2: UPC Item DB Free Public Endpoint (For General Retail Items)
-    try {
-        const upcRes = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(cleanCode)}`);
-        if (upcRes.ok) {
-            const upcData = await upcRes.json();
-            if (upcData && upcData.items && upcData.items.length > 0) {
-                const item = upcData.items[0];
-                const image = (item.images && item.images.length > 0) ? item.images[0] : "https://images.unsplash.com/photo-1542838132-92c53300491e?w=600&auto=format&fit=crop&q=80";
-                
-                return {
-                    barcode: cleanCode,
-                    title: item.title || `Scanned Item #${cleanCode.slice(-4)}`,
-                    brand: (item.brand || "RETAIL GOODS").toUpperCase(),
-                    price: item.lowest_recorded_price ? Math.round(item.lowest_recorded_price) : 49,
-                    image: image
-                };
-            }
-        }
-    } catch (e) {
-        console.warn("UPCItemDB API error:", e);
+    function setLast(p, repeat) {
+        const tag = p.source === "catalog" ? `<span class="tag tag--ok">${UI.icon("check")}In catalog</span>` : `<span class="tag tag--warn">Not in store catalog</span>`;
+        const el = $("last");
+        el.className = "last has";
+        el.innerHTML = `<span class="thumb">${p.image ? `<img src="${UI.esc(p.image)}" alt="" onerror="this.remove()">` : UI.icon("package")}</span>
+            <div style="flex:1;min-width:0"><div class="t">${UI.esc(p.title)}</div><div class="s">${tag} ${repeat ? "· quantity increased" : ""}</div></div>
+            <b class="num">${UI.inr(p.price)}</b>`;
     }
 
-    return null;
-}
-        // Updated Async Scanner Handler
-        async function handleProductScanned(barcode) {
-    if (isProcessingScan) return;
-    isProcessingScan = true;
+    const total = () => cart.reduce((s, i) => s + i.price * i.qty, 0);
+    const count = () => cart.reduce((s, i) => s + i.qty, 0);
 
-    try {
-        if (html5QrCode && typeof Html5QrcodeScannerState !== "undefined") {
-            if (html5QrCode.getState() === 2) {
-                html5QrCode.pause();
-            }
+    function render() {
+        const list = $("bill-list");
+        if (!cart.length) {
+            list.innerHTML = `<li class="empty"><div class="ico">${UI.icon("barcode")}</div><h3>Nothing scanned yet</h3><p>${stage === "scan" ? "Hold a product's barcode to the camera and it lands here." : "Identify yourself first, then scan your items."}</p></li>`;
+        } else {
+            list.innerHTML = cart.map(i => {
+                const tag = i.source === "catalog" ? "" : i.source === "openfoodfacts" ? `<span class="tag tag--warn">Est. price</span>` : `<span class="tag tag--warn">Unlisted · est.</span>`;
+                const price = i.estimated && stage === "scan"
+                    ? `<input class="price-input num" type="number" min="0" step="1" value="${i.price}" data-price="${UI.esc(i.barcode)}" aria-label="Price for ${UI.esc(i.title)}">`
+                    : `<span class="num">${UI.inr(i.price)}</span>`;
+                const editable = stage === "scan";
+                return `<li class="row ${i.barcode === flashCode ? "flash" : ""}">
+                  <span class="thumb">${i.image ? `<img src="${UI.esc(i.image)}" alt="" onerror="this.remove()">` : UI.icon("package")}</span>
+                  <div style="min-width:0"><div class="name">${UI.esc(i.title)}</div><div class="sub">${price} × ${i.qty} ${tag}</div></div>
+                  <div class="ctl">
+                    <span class="line num">${UI.inr(i.price * i.qty)}</span>
+                    ${editable ? `<span class="qtyline"><span class="stepper"><button data-dec="${UI.esc(i.barcode)}" aria-label="Decrease quantity">${UI.icon("minus")}</button><output>${i.qty}</output><button data-inc="${UI.esc(i.barcode)}" aria-label="Increase quantity">${UI.icon("plus")}</button></span><button class="icon-btn icon-btn--danger rm" data-rm="${UI.esc(i.barcode)}" aria-label="Remove ${UI.esc(i.title)}">${UI.icon("trash")}</button></span>` : ""}
+                  </div></li>`;
+            }).join("");
         }
-    } catch (e) { console.warn("Pause frame failed:", e); }
-
-    playScannerBeep();
-
-    const cleanBarcode = barcode.trim();
-    showToast("Live API se product fetch ho raha hai...", "info");
-
-    // 1. Live automatic API se fetch karo
-    let matched = await fetchLiveProductData(cleanBarcode);
-
-    // 2. Agar live API me na mile, tab local database me check karo
-    if (!matched) {
-        matched = productsDatabase.find(p => p.barcode === cleanBarcode);
+        flashCode = null;
+        const est = cart.filter(i => i.estimated).length;
+        $("est-note").hidden = !est || stage !== "scan";
+        $("est-note").querySelector("span").textContent = `${est} item${est > 1 ? "s" : ""} priced at an estimate (₹${RAISECatalog.DEFAULT_PRICE}). Edit the price if it's wrong.`;
+        $("bill-count").textContent = count() + (count() === 1 ? " item" : " items");
+        $("bill-count").className = "tag" + (count() ? " tag--ok" : "");
+        $("subtotal").textContent = $("total").textContent = UI.inr(total());
+        const pay = $("btn-pay");
+        pay.innerHTML = `Pay ${UI.inr(total())} ${UI.icon("arrow-right")}`;
+        pay.disabled = !cart.length || stage !== "scan";
+        pay.hidden = stage === "paid";
     }
 
-    // 3. Agar kahin bhi na mile (Generic Shopping Grocery Bag Fallback Image)
-    if (!matched) {
-        matched = {
-            barcode: cleanBarcode,
-            title: `Scanned Product #${cleanBarcode.slice(-4)}`,
-            brand: "GENERAL GOODS",
-            price: 40,
-            image: "https://images.unsplash.com/photo-1542838132-92c53300491e?w=600&auto=format&fit=crop&q=80"
-        };
+    $("bill-list").addEventListener("click", e => {
+        const b = e.target.closest("button"); if (!b) return;
+        const find = c => cart.find(i => i.barcode === c);
+        if (b.dataset.inc) find(b.dataset.inc).qty++;
+        else if (b.dataset.dec) { const it = find(b.dataset.dec); it.qty = Math.max(1, it.qty - 1); }
+        else if (b.dataset.rm) { cart = cart.filter(i => i.barcode !== b.dataset.rm); UI.toast("Item removed", "warn"); }
+        else return;
+        render();
+    });
+    $("bill-list").addEventListener("change", e => {
+        const code = e.target.dataset.price; if (!code) return;
+        const v = Math.max(0, parseFloat(e.target.value) || 0);
+        cart.find(i => i.barcode === code).price = v;
+        render();
+    });
+
+    $("manual-form").onsubmit = e => { e.preventDefault(); const v = $("manual-input").value; $("manual-input").value = ""; addByBarcode(v); };
+
+    // USB barcode gun (keyboard wedge): fast digit burst + Enter, when no input is focused
+    let wedge = "", wedgeAt = 0;
+    document.addEventListener("keydown", e => {
+        if (stage !== "scan" || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+        const now = performance.now();
+        if (now - wedgeAt > 120) wedge = "";
+        wedgeAt = now;
+        if (/^\d$/.test(e.key)) wedge += e.key;
+        else if (e.key === "Enter" && wedge.length >= 6) { addByBarcode(wedge); wedge = ""; }
+    });
+
+    // ---------- Pay ----------
+    $("btn-pay").onclick = () => {
+        const amt = total(); if (!amt) return;
+        $("pay-amt").textContent = UI.inr(amt);
+        $("pay-vpa").textContent = "Paying " + MERCHANT_VPA;
+        const upi = `upi://pay?pa=${encodeURIComponent(MERCHANT_VPA)}&pn=${encodeURIComponent(MERCHANT_NAME)}&am=${amt.toFixed(2)}&cu=INR&tn=${encodeURIComponent("RAISE order")}`;
+        $("upi-qr").innerHTML = "";
+        new QRCode($("upi-qr"), { text: upi, width: 200, height: 200, correctLevel: QRCode.CorrectLevel.H, colorDark: "#141813" });
+        setStage("pay");
+    };
+    $("btn-back").onclick = () => setStage("scan");
+    $("btn-demo-paid").onclick = () => {
+        const order = "RS-" + Math.floor(100000 + Math.random() * 900000);
+        $("paid-order").textContent = order;
+        $("paid-amt").textContent = UI.inr(total());
+        $("paid-name").textContent = user ? user.name : "Guest";
+        $("paid-seal").innerHTML = UI.sealSVG(148);
+        setStage("paid");
+        UI.stampSeal($("paid-seal").querySelector(".seal"));
+        UI.beep(1318, 140);
+        startCountdown();
+    };
+
+    function startCountdown() {
+        clearInterval(countdown); countLeft = 10; $("count").textContent = countLeft;
+        $("btn-pause").innerHTML = UI.icon("pause") + " Pause";
+        countdown = setInterval(() => { $("count").textContent = --countLeft; if (countLeft <= 0) reset(); }, 1000);
+    }
+    $("btn-pause").onclick = () => {
+        if (countdown) { clearInterval(countdown); countdown = null; $("btn-pause").innerHTML = UI.icon("refresh") + " Resume"; }
+        else startCountdown();
+    };
+    $("btn-new").onclick = reset;
+
+    function reset() {
+        clearInterval(countdown); countdown = null;
+        cart = []; user = null; lastIssued = null;
+        $("holder").hidden = true;
+        $("last").className = "last"; $("last").innerHTML = `<span class="thumb">${UI.icon("barcode")}</span><span>Last scanned item appears here.</span>`;
+        $("reg-form").reset();
+        $("reg-out").innerHTML = `<div class="empty" style="padding:var(--s4)"><div class="ico">${UI.icon("qr")}</div><h3>Your pass appears here</h3><p>It's signed and encrypted, so it can be printed or saved.</p></div>`;
+        setStage("pass");
     }
 
-    const existingCartItem = cart.find(item => item.barcode === cleanBarcode);
-    const initialQty = existingCartItem ? existingCartItem.qty : 1;
-
-    currentScannedItem = { ...matched, qty: initialQty };
-    showScreen2ProductDetails();
-}
-
-        function handleManualSubmit() {
-            const input = document.getElementById('manual-code-input');
-            const code = input.value.trim();
-            if (!code) {
-                showToast("Please enter a barcode number", "warning");
-                return;
-            }
-            handleProductScanned(code);
-            input.value = "";
-        }
-
-        async function showScreen2ProductDetails() {
-            await stopCameraScanner();
-            document.getElementById('scanned-item-img').src = currentScannedItem.image;
-            document.getElementById('scanned-item-brand').textContent = currentScannedItem.brand;
-            document.getElementById('scanned-item-title').textContent = currentScannedItem.title;
-            document.getElementById('scanned-item-unit-rate').textContent = `₹${currentScannedItem.price}`;
-
-            updateScreen2QtyDisplay();
-            goToScreen(2);
-        }
-
-        function changeCurrentItemQty(delta) {
-            if (!currentScannedItem) return;
-            currentScannedItem.qty += delta;
-            if (currentScannedItem.qty < 1) currentScannedItem.qty = 1;
-            updateScreen2QtyDisplay();
-        }
-
-        function updateScreen2QtyDisplay() {
-            document.getElementById('scanned-item-qty').textContent = currentScannedItem.qty;
-            const subtotal = currentScannedItem.price * currentScannedItem.qty;
-            document.getElementById('scanned-item-subtotal').textContent = `₹${subtotal.toLocaleString('en-IN')}`;
-        }
-
-        function commitCurrentItemToCart() {
-            if (!currentScannedItem) return;
-
-            const existingIdx = cart.findIndex(item => item.barcode === currentScannedItem.barcode);
-            if (existingIdx > -1) {
-                cart[existingIdx].qty = currentScannedItem.qty;
-            } else {
-                cart.push({ ...currentScannedItem });
-            }
-
-            updateCartSummaryUI();
-            showToast(`Added ${currentScannedItem.title} (x${currentScannedItem.qty})`, "success");
-        }
-
-        function saveCurrentItemAndScanMore() {
-            commitCurrentItemToCart();
-            isProcessingScan = false;
-            goToScreen(1);
-            startCameraScanner();
-        }
-
-        function saveCurrentItemAndGoCheckout() {
-            commitCurrentItemToCart();
-            goToFinalBillScreen();
-        }
-
-        function adjustCartQty(barcode, delta) {
-            const index = cart.findIndex(item => item.barcode === barcode);
-            if (index > -1) {
-                cart[index].qty += delta;
-                if (cart[index].qty <= 0) {
-                    cart.splice(index, 1);
-                    showToast("Item removed from cart", "warning");
-                }
-                updateCartSummaryUI();
-                renderCartListScreen3();
-            }
-        }
-
-        function removeCartItem(barcode) {
-            cart = cart.filter(item => item.barcode !== barcode);
-            updateCartSummaryUI();
-            renderCartListScreen3();
-            showToast("Item removed", "warning");
-        }
-
-        async function goToFinalBillScreen() {
-            await stopCameraScanner();
-            goToScreen(3);
-            renderCartListScreen3();
-        }
-
-        function renderCartListScreen3() {
-            const container = document.getElementById('cart-items-container');
-            const totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
-            const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-            const grandTotal = subtotal;
-
-            document.getElementById('loyalty-discount-row').classList.add('hidden');
-
-            document.getElementById('bill-total-items-badge').textContent = `${totalItems} Items`;
-            document.getElementById('bill-subtotal').textContent = `₹${subtotal.toLocaleString('en-IN')}`;
-            document.getElementById('bill-grand-total').textContent = `₹${grandTotal.toLocaleString('en-IN')}`;
-
-            if (cart.length === 0) {
-                container.innerHTML = `
-                    <div class="text-center py-12 space-y-3">
-                        <i class="fa-solid fa-basket-shopping text-5xl text-slate-300"></i>
-                        <p class="text-base font-bold text-slate-500">Your cart is currently empty</p>
-                        <button onclick="goToScreen(1); startCameraScanner();" class="text-xs text-blue-600 font-bold underline hover:text-blue-800">
-                            + Scan Products Now
-                        </button>
-                    </div>
-                `;
-                generateUPIQRCode(0);
-                return;
-            }
-
-            container.innerHTML = cart.map(item => `
-                <div class="flex flex-col sm:flex-row items-center justify-between gap-4 py-3">
-                    <div class="flex items-center gap-3.5 w-full sm:w-auto">
-                        <img src="${item.image}" alt="${item.title}" class="w-14 h-14 object-contain rounded-xl bg-slate-50 border border-slate-200 p-1 shrink-0">
-                        <div>
-                            <span class="text-[10px] font-black text-blue-600 uppercase tracking-wider">${item.brand}</span>
-                            <h4 class="text-sm font-extrabold text-slate-900 leading-tight">${item.title}</h4>
-                            <p class="text-xs text-slate-500 font-mono mt-0.5">Rate: ₹${item.price} • Barcode: ${item.barcode}</p>
-                        </div>
-                    </div>
-
-                    <div class="flex items-center justify-between sm:justify-end gap-5 w-full sm:w-auto border-t sm:border-0 border-slate-100 pt-2 sm:pt-0">
-                        <div class="flex items-center bg-slate-100 border border-slate-200 rounded-xl overflow-hidden shadow-inner">
-                            <button onclick="adjustCartQty('${item.barcode}', -1)" class="w-8 h-8 bg-white hover:bg-slate-200 text-slate-800 font-black flex items-center justify-center transition">
-                                <i class="fa-solid fa-minus text-xs"></i>
-                            </button>
-                            <span class="w-10 text-center font-black text-sm text-slate-900 font-mono">${item.qty}</span>
-                            <button onclick="adjustCartQty('${item.barcode}', 1)" class="w-8 h-8 bg-white hover:bg-slate-200 text-slate-800 font-black flex items-center justify-center transition">
-                                <i class="fa-solid fa-plus text-xs"></i>
-                            </button>
-                        </div>
-
-                        <div class="text-right min-w-[70px]">
-                            <span class="text-base font-black text-blue-600 font-mono">
-                                ₹${(item.price * item.qty).toLocaleString('en-IN')}
-                            </span>
-                        </div>
-
-                        <button onclick="removeCartItem('${item.barcode}')" class="text-slate-400 hover:text-red-500 transition p-1">
-                            <i class="fa-solid fa-trash-can text-sm"></i>
-                        </button>
-                    </div>
-                </div>
-            `).join('');
-
-            generateUPIQRCode(grandTotal);
-        }
-
-        function generateUPIQRCode(amount) {
-            const qrContainer = document.getElementById('qrcode-canvas');
-            qrContainer.innerHTML = "";
-
-            if (amount <= 0) {
-                qrContainer.innerHTML = `<p class="text-xs text-slate-400 p-6 font-semibold">Cart is empty</p>`;
-                return;
-            }
-
-            const upiString = `upi://pay?pa=storeadmin@upi&pn=QuickScan%20Express&am=${amount}&cu=INR`;
-
-            qrCodeInstance = new QRCode(qrContainer, {
-                text: upiString,
-                width: 180,
-                height: 180,
-                colorDark: "#0f172a",
-                colorLight: "#ffffff",
-                correctLevel: QRCode.CorrectLevel.H
-            });
-        }
-
-        function simulatePaymentSuccess() {
-            const grandTotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-            if (grandTotal <= 0) {
-                showToast("Cart is empty!", "warning");
-                return;
-            }
-
-            const randomOrderId = Math.floor(100000 + Math.random() * 900000);
-            document.getElementById('modal-order-id').textContent = randomOrderId;
-            document.getElementById('modal-total-paid').textContent = `₹${grandTotal.toLocaleString('en-IN')}`;
-            document.getElementById('modal-user-name').textContent = activeUser ? activeUser.name : "User";
-            document.getElementById('payment-modal').classList.remove('hidden');
-
-            start10SecAutoResetTimer();
-        }
-
-        function goToScreen(screenNumber) {
-            document.getElementById('screen-1').classList.add('hidden');
-            document.getElementById('screen-2').classList.add('hidden');
-            document.getElementById('screen-3').classList.add('hidden');
-
-            document.getElementById(`screen-${screenNumber}`).classList.remove('hidden');
-            updateHeaderStepPill(screenNumber);
-        }
-
-        function updateHeaderStepPill(stepNum) {
-            const p1 = document.getElementById('step-pill-1');
-            const p2 = document.getElementById('step-pill-2');
-            const p3 = document.getElementById('step-pill-3');
-
-            p1.className = stepNum === 1 ? "text-blue-600 font-black" : "text-slate-400";
-            p2.className = stepNum === 2 ? "text-blue-600 font-black" : "text-slate-400";
-            p3.className = stepNum === 3 ? "text-blue-600 font-black" : "text-slate-400";
-        }
-
-        function updateCartSummaryUI() {
-            const totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
-            const grandTotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-
-            document.getElementById('cart-badge-count').textContent = totalItems;
-            document.getElementById('scanner-bottom-count').textContent = `${totalItems} Items (₹${grandTotal.toLocaleString('en-IN')})`;
-        }
-
-        function start10SecAutoResetTimer() {
-            clearInterval(autoResetInterval);
-            countdownSeconds = 10;
-
-            const countdownDisplay = document.getElementById('countdown-seconds');
-            if (countdownDisplay) countdownDisplay.textContent = countdownSeconds;
-
-            autoResetInterval = setInterval(() => {
-                countdownSeconds--;
-                if (countdownDisplay) countdownDisplay.textContent = countdownSeconds;
-
-                if (countdownSeconds <= 0) {
-                    clearInterval(autoResetInterval);
-                    startNewOrder();
-                }
-            }, 1000);
-        }
-
-        function pauseAutoResetTimer() {
-            const pauseBtn = document.getElementById('pause-timer-btn');
-            if (autoResetInterval) {
-                clearInterval(autoResetInterval);
-                autoResetInterval = null;
-                if (pauseBtn) {
-                    pauseBtn.textContent = "Timer Paused";
-                    pauseBtn.className = "bg-blue-100 text-blue-800 border border-blue-300 text-[10px] px-2 py-1 rounded-lg transition shadow-sm font-bold";
-                }
-                showToast("Auto reset countdown paused", "warning");
-            } else {
-                start10SecAutoResetTimer();
-                showToast("Auto reset countdown resumed", "success");
-            }
-        }
-
-        function startNewOrder() {
-            clearInterval(autoResetInterval);
-            autoResetInterval = null;
-            window.location.reload();
-        }
-
-        function playScannerBeep() {
-            try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-                gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.start();
-                osc.stop(audioCtx.currentTime + 0.12);
-            } catch (e) { }
-        }
-
-        function showToast(message, type = "success") {
-            const toast = document.getElementById('toast');
-            const msgEl = document.getElementById('toast-message');
-            const iconEl = document.getElementById('toast-icon');
-
-            msgEl.textContent = message;
-
-            if (type === "warning") {
-                iconEl.className = "fa-solid fa-triangle-exclamation text-amber-400 text-xl";
-            } else if (type === "info") {
-                iconEl.className = "fa-solid fa-spinner animate-spin text-blue-400 text-xl";
-            } else {
-                iconEl.className = "fa-solid fa-circle-check text-emerald-400 text-xl";
-            }
-
-            toast.classList.remove('translate-y-24', 'opacity-0');
-            setTimeout(() => {
-                toast.classList.add('translate-y-24', 'opacity-0');
-            }, 2500);
-        }
-    </script>
+    setStage("pass");
+    startCamera();
+})();
+</script>
 </body>
-
 </html>
