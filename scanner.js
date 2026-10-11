@@ -101,10 +101,12 @@
         // Forget the last accepted code so the same item can be scanned again straight away.
         resetCooldown() { this.lastAccepted = null; }
 
+        // Real cameras only: the Pi's internal codec/ISP nodes are left out, so with one USB
+        // webcam plugged in there is exactly one choice and no picker is shown.
         async listCameras() {
             if (!navigator.mediaDevices?.enumerateDevices) return [];
             const devices = await navigator.mediaDevices.enumerateDevices();
-            return devices.filter(d => d.kind === "videoinput");
+            return devices.filter(d => d.kind === "videoinput" && !NOT_A_CAMERA.test(d.label));
         }
 
         // Open one camera. 1080p gives more pixels per bar; if a webcam can't deliver it over
@@ -160,7 +162,7 @@
             if (deviceId) await attempt(deviceId);
             if (!stream) await attempt(null);
             if (!stream) {
-                const cams = (await this.listCameras()).filter(c => !NOT_A_CAMERA.test(c.label));
+                const cams = await this.listCameras();
                 cams.sort((a, b) => WEBCAM_HINT.test(b.label) - WEBCAM_HINT.test(a.label));
                 for (const c of cams) {
                     await attempt(c.deviceId);
