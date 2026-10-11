@@ -1,10 +1,10 @@
 {
-  "name": "QuickScan Express POS",
-  "short_name": "QuickScan",
-  "description": "Smart Self Checkout Kiosk App",
-  "start_url": "./index.html",
+  "name": "RAISE Smart Ecosystem",
+  "short_name": "RAISE",
+  "description": "Smart Self Checkout Kiosk & Customer Companion App",
+  "start_url": "/",
   "display": "standalone",
-  "background_color": "#f8fafc",
+  "background_color": "#ffffff",
   "theme_color": "#2563eb",
   "icons": [
     {

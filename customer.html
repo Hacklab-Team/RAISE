@@ -2,6 +2,7 @@
 <html lang="en">
 
 <head>
+    <link rel="manifest" href="manifest-customer.json">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>RAISE Customer Companion</title>
@@ -21,11 +22,18 @@
             color: #0f172a;
         }
 
-        #user-qrcode-canvas img,
+        /* Hide duplicate canvas & keep QR image sharp with zero clipping */
         #user-qrcode-canvas canvas {
-            margin: 0 auto;
-            border-radius: 16px;
-            box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.2);
+            display: none !important;
+        }
+
+        #user-qrcode-canvas img {
+            margin: 0 auto !important;
+            max-width: 100% !important;
+            height: auto !important;
+            display: block !important;
+            border-radius: 0px !important;
+            box-shadow: none !important;
         }
     </style>
 </head>
@@ -33,7 +41,7 @@
 <body
     class="min-h-screen flex flex-col antialiased bg-slate-100 max-w-md mx-auto relative shadow-2xl border-x border-slate-200 selection:bg-blue-600 selection:text-white">
 
-    <!-- ================= AUTHENTICATION SCREEN (LOGIN / REGISTER TABS) ================= -->
+    <!-- ================= AUTHENTICATION SCREEN (LOGIN / REGISTER) ================= -->
     <section id="auth-screen" class="min-h-screen flex flex-col justify-between p-6 bg-white z-50">
         <div class="space-y-6 my-auto">
             <div class="text-center space-y-2">
@@ -46,7 +54,7 @@
                 <p class="text-xs text-slate-500 font-medium">Smart Trolley Kiosk & Digital Wallet Companion</p>
             </div>
 
-            <!-- TAB SWITCHER: LOGIN VS REGISTER -->
+            <!-- TAB SWITCHER -->
             <div class="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
                 <button id="auth-tab-btn-login" onclick="switchAuthMode('login')"
                     class="flex-1 py-2.5 text-xs font-black rounded-xl bg-white text-blue-600 shadow-sm transition">
@@ -133,8 +141,12 @@
                     <p class="text-xs text-slate-500 font-medium mt-1">Show this QR code to the Smart Trolley Camera</p>
                 </div>
 
-                <div id="user-qrcode-canvas"
-                    class="p-4 bg-slate-50 border border-slate-200 rounded-2xl inline-block shadow-inner"></div>
+                <!-- Fixed Quiet-Zone Wrapper for 100% Corner Visibility -->
+                <div class="p-3 bg-slate-50 border border-slate-200 rounded-3xl inline-block shadow-inner">
+                    <div class="bg-white p-4 rounded-2xl border border-slate-100 flex justify-center items-center">
+                        <div id="user-qrcode-canvas" class="flex justify-center items-center"></div>
+                    </div>
+                </div>
 
                 <div
                     class="bg-blue-50/60 border border-blue-100 rounded-2xl p-3.5 flex items-center justify-around text-left">
@@ -242,7 +254,7 @@
             </button>
         </section>
 
-        <!-- ================= BOTTOM NAVIGATION BAR (3 TABS) ================= -->
+        <!-- ================= BOTTOM NAVIGATION BAR ================= -->
         <nav
             class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur-md border-t border-slate-200 p-2 grid grid-cols-3 z-50 shadow-2xl">
             <button id="nav-btn-qr" onclick="switchTab('qr')"
@@ -300,7 +312,7 @@
         </div>
     </div>
 
-    <!-- Recharge Modal -->
+    <!-- RECHARGE MODAL -->
     <div id="add-money-modal"
         class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 hidden flex items-center justify-center p-4 max-w-md mx-auto">
         <div class="bg-white rounded-3xl w-full p-6 space-y-5 border border-slate-200 shadow-2xl">
@@ -324,13 +336,14 @@
         </div>
     </div>
 
-    <!-- Notification Toast -->
+    <!-- NOTIFICATION TOAST -->
     <div id="toast"
         class="fixed bottom-20 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl z-50 transform translate-y-24 opacity-0 transition-all duration-300 flex items-center gap-2.5 text-xs font-bold border border-slate-800">
         <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
         <span id="toast-message">Notification</span>
     </div>
 
+    <!-- SCRIPT ENGINE -->
     <script>
         let userData = null;
 
@@ -464,7 +477,6 @@
             const canvasContainer = document.getElementById('user-qrcode-canvas');
             canvasContainer.innerHTML = "";
 
-            // Hardware & Trolley Kiosk ready payload schema
             const qrPayload = JSON.stringify({
                 name: userData.name,
                 phone: userData.phone,
@@ -474,11 +486,11 @@
 
             new QRCode(canvasContainer, {
                 text: qrPayload,
-                width: 170,
-                height: 170,
+                width: 150,
+                height: 150,
                 colorDark: "#0f172a",
                 colorLight: "#ffffff",
-                correctLevel: QRCode.CorrectLevel.H
+                correctLevel: QRCode.CorrectLevel.M
             });
         }
 
