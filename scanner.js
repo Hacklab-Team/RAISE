@@ -161,6 +161,17 @@
                 await track.applyConstraints({ advanced: [c] }).catch(() => {});
             }
             this.autofocus = !!caps.focusMode?.includes("continuous");
+            // Manual focus range, if the webcam exposes one (many USB webcams do on Linux).
+            this.focusRange = caps.focusDistance && caps.focusMode?.includes("manual") ? caps.focusDistance : null;
+        }
+
+        // Lock focus at a distance (manual), or return to autofocus with null.
+        async setFocus(distance) {
+            if (!this.track) return;
+            const c = distance == null
+                ? { focusMode: "continuous" }
+                : { focusMode: "manual", focusDistance: distance };
+            await this.track.applyConstraints({ advanced: [c] }).catch(e => console.warn("Focus:", e));
         }
 
         _stopTracks() {

@@ -82,6 +82,12 @@
         .last .t { font-weight: 600; line-height: 1.25; }
         .last .s { font-size: var(--t-xs); color: var(--mute); margin-top: 2px; }
 
+        .focus-row { display: flex; align-items: center; gap: var(--s3); }
+        .focus-row input { accent-color: var(--accent); }
+        .quick { display: flex; flex-wrap: wrap; gap: 6px; }
+        .quick button { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px 0 4px; border: 1px solid var(--line-strong); border-radius: var(--r-sm); background: var(--surface); font-size: var(--t-xs); font-weight: 550; cursor: pointer; }
+        .quick button:hover { border-color: var(--accent); background: var(--accent-wash); }
+        .quick img { width: 24px; height: 24px; object-fit: contain; border-radius: 4px; background: #fff; }
         .catalog-peek { font-size: var(--t-xs); color: var(--mute); }
         .catalog-peek code { font-family: var(--mono); background: var(--paper-2); padding: 1px 5px; border-radius: 4px; color: var(--ink-2); }
 
@@ -220,7 +226,12 @@
                         <input class="field" id="manual-input" inputmode="numeric" autocomplete="off" placeholder="e.g. 8901719123870" aria-label="Barcode number">
                         <button class="btn" type="submit">Add <span class="kbd">↵</span></button>
                     </form>
-                    <p class="catalog-peek">Demo catalog: <code>8901719123870</code> Parle-G · <code>8901764042911</code> Thums Up · <code>8901262010016</code> Amul Butter</p>
+                    <div class="focus-row" id="focus-row" hidden>
+                        <label class="label" for="focus" style="margin:0">Focus</label>
+                        <input type="range" id="focus" style="flex:1">
+                        <button class="btn" id="btn-af" type="button">Auto</button>
+                    </div>
+                    <div class="quick" id="quick" aria-label="Tap to add a catalog item"></div>
                 </div>
             </div>
 
@@ -622,8 +633,23 @@
         setStage("pass");
     }
 
+    $("quick").innerHTML = RAISECatalog.CATALOG.map(p =>
+        `<button type="button" data-code="${UI.esc(p.barcode)}" title="${UI.esc(p.barcode)}"><img src="${UI.esc(p.image)}" alt="" onerror="this.remove()">${UI.esc(p.title.replace(/\s*\(.*\)$/, ""))}</button>`).join("");
+    $("quick").onclick = e => { const b = e.target.closest("button"); if (b) addByBarcode(b.dataset.code); };
+
+    function setupFocus() {
+        const r = scanner.focusRange;
+        $("focus-row").hidden = !r;
+        if (!r) return;
+        const f = $("focus");
+        f.min = r.min; f.max = r.max; f.step = r.step || (r.max - r.min) / 100;
+        f.value = r.min + (r.max - r.min) * 0.5;
+        f.oninput = () => scanner.setFocus(parseFloat(f.value));
+        $("btn-af").onclick = () => scanner.setFocus(null);
+    }
+
     setStage("pass");
-    startCamera();
+    startCamera().then(setupFocus);
 })();
 </script>
 </body>
