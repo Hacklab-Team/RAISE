@@ -42,19 +42,16 @@
         .cam video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
         .cam.is-mirrored video { transform: scaleX(-1); }
         .guide { position: absolute; pointer-events: none; transition: all var(--dur) var(--ease); }
-        .guide--pass { left: 7.5%; right: 7.5%; top: 7.5%; bottom: 7.5%; }
-        .guide--product { left: 7%; right: 7%; top: 19%; bottom: 19%; }
-        .cam[data-mode="pass"] .guide--pass { opacity: 1; } .cam[data-mode="pass"] .guide--product { opacity: 0; }
-        .cam[data-mode="product"] .guide--product { opacity: 1; } .cam[data-mode="product"] .guide--pass { opacity: 0; }
-        .cam[data-mode="pass"] .guide--pass { aspect-ratio: 1; left: 50%; right: auto; top: 50%; bottom: auto; height: 85%; transform: translate(-50%, -50%); }
+        /* The whole frame is decoded, so the guide marks the whole frame. */
+        .guide { inset: 4%; }
         .guide i { position: absolute; width: 22px; height: 22px; border: 3px solid #fff; opacity: .95; }
         .guide i:nth-child(1) { left: 0; top: 0; border-right: 0; border-bottom: 0; border-top-left-radius: 6px; }
         .guide i:nth-child(2) { right: 0; top: 0; border-left: 0; border-bottom: 0; border-top-right-radius: 6px; }
         .guide i:nth-child(3) { left: 0; bottom: 0; border-right: 0; border-top: 0; border-bottom-left-radius: 6px; }
         .guide i:nth-child(4) { right: 0; bottom: 0; border-left: 0; border-top: 0; border-bottom-right-radius: 6px; }
-        .guide .sweep { position: absolute; left: 4%; right: 4%; height: 2px; background: #6be0bf; animation: sweep 2.2s var(--ease) infinite alternate; }
-        @keyframes sweep { from { top: 6%; } to { top: 94%; } }
-        .cam.is-paused .sweep { display: none; }
+        .pass-start { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s3); padding: var(--s6) var(--s2); }
+        .pass-start h3 { font-size: var(--t-xl); font-weight: 650; letter-spacing: -0.02em; }
+        .pass-start p { color: var(--mute); max-width: 44ch; }
         .cam-status { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s3); padding: var(--s6); text-align: center; background: rgba(11, 16, 14, .9); color: #e8eee7; }
         .cam-status .icon { width: 30px; height: 30px; color: #9fb2a8; }
         .cam-status p { max-width: 36ch; font-size: var(--t-md); }
@@ -194,7 +191,13 @@
                     <button role="tab" id="seg-reg" aria-selected="false">Register new</button>
                 </div>
 
-                <div class="cam-row">
+                <div class="pass-start" id="pass-start" hidden>
+                    <h3>Have a RAISE Pass?</h3>
+                    <p>Tap the button, then hold your pass QR (phone screen or printed card) up to the camera.</p>
+                    <button class="btn btn--primary btn--lg" id="btn-scan-pass"><svg data-icon="qr"></svg> Scan my pass</button>
+                </div>
+
+                <div class="cam-row" id="cam-head">
                     <p class="cam-instruction grow" id="instruction">Hold your RAISE Pass up to the camera</p>
                     <div class="cam-tools">
                         <span class="cam-stat" id="cam-stat" title="Camera resolution · decode attempts per second · autofocus">—</span>
@@ -206,8 +209,7 @@
 
                 <div class="cam" id="cam" data-mode="pass">
                     <video id="video" playsinline muted></video>
-                    <div class="guide guide--pass"><i></i><i></i><i></i><i></i><span class="sweep"></span></div>
-                    <div class="guide guide--product"><i></i><i></i><i></i><i></i><span class="sweep"></span></div>
+                    <div class="guide"><i></i><i></i><i></i><i></i></div>
                     <div class="cam-status" id="cam-status">
                         <svg data-icon="camera"></svg>
                         <p>Starting camera…</p>
@@ -215,7 +217,7 @@
                 </div>
 
                 <div id="below-pass" class="cam-row" style="justify-content:space-between">
-                    <p class="hint" style="margin:0">Phone screen or printed card both work. Hold it 15–25 cm from the lens.</p>
+                    <button class="btn" id="btn-cancel-pass" hidden><svg data-icon="x"></svg> Stop camera</button>
                     <button class="btn btn--ghost" id="btn-guest">Continue as guest <svg data-icon="arrow-right"></svg></button>
                 </div>
 
@@ -401,13 +403,21 @@
     const PANES = ["body-camera", "body-register", "body-verified", "body-pay", "body-paid"];
     function show(pane) { PANES.forEach(p => { $(p).hidden = p !== pane; }); }
 
+    let passCam = false;  // the pass scanner runs only after "Scan my pass" is tapped
+
     function setStage(next) {
         stage = next;
+        if (next !== "pass") passCam = false;
         const camMode = next === "pass" ? "pass" : "product";
         $("cam").dataset.mode = camMode;
         scanner.setMode(camMode);
 
-        const live = next === "pass" || next === "scan";
+        const live = (next === "pass" && passCam) || next === "scan";
+        const camShown = next !== "pass" || passCam;
+        $("pass-start").hidden = !(next === "pass" && !passCam);
+        $("cam-head").hidden = !camShown;
+        $("cam").hidden = !camShown;
+        $("btn-cancel-pass").hidden = !(next === "pass" && passCam);
         live ? scanner.resume() : scanner.pause();
         $("cam").classList.toggle("is-paused", !live);
 
@@ -464,6 +474,8 @@
         setStage("scan");
     }
     $("btn-guest").onclick = startGuest;
+    $("btn-scan-pass").onclick = () => { passCam = true; setStage("pass"); };
+    $("btn-cancel-pass").onclick = () => { passCam = false; setStage("pass"); };
     const toPassTab = () => setStage("pass"), toRegTab = () => setStage("register");
     $("seg-scan").onclick = toPassTab; $("seg-reg").onclick = toRegTab;
     $("seg2-scan").onclick = toPassTab; $("seg2-reg").onclick = toRegTab;
