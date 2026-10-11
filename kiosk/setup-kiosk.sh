@@ -104,14 +104,19 @@ for i in \$(seq 1 60); do
     sleep 1
 done
 
+# The kiosk uses its own Chromium profile, so it starts as a separate full-screen instance
+# even if a normal Chromium window is already open (otherwise --kiosk is ignored).
+PROFILE="\$HOME/.config/raise-kiosk-profile"
+
 # After a power cut Chromium shows a "Restore pages?" bubble; mark the last exit as clean.
-PREFS="\$HOME/.config/chromium/Default/Preferences"
+PREFS="\$PROFILE/Default/Preferences"
 if [ -f "\$PREFS" ]; then
     sed -i 's/"exited_cleanly":false/"exited_cleanly":true/; s/"exit_type":"[^"]*"/"exit_type":"Normal"/' "\$PREFS"
 fi
 
 echo "launching $CHROMIUM"
 exec "$CHROMIUM" \\
+    --user-data-dir="\$PROFILE" \\
     --kiosk "$URL" \\
     --ozone-platform-hint=auto \\
     --noerrdialogs \\
