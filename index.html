@@ -555,7 +555,7 @@
 
     <script>
         // BARCODE LOOKUP API KEY (Paste your key here from barcodelookup.com/api)
-        const BARCODE_LOOKUP_API_KEY = "YOUR_API_KEY";
+        const BARCODE_LOOKUP_API_KEY = "68sc4ozm7a9i4hq5t7sjvb2sc7zzkw";
 
         // Real Indian FMCG Supermarket (G-Mart / D-Mart) EAN-13 Barcode Database
         const productsDatabase = [
@@ -802,87 +802,101 @@
         }
 
         // Fetch Live Product details from Barcode Lookup API
-        async function fetchProductFromBarcodeLookup(barcode) {
-            if (!BARCODE_LOOKUP_API_KEY || BARCODE_LOOKUP_API_KEY === "YOUR_API_KEY") {
-                return null;
-            }
+        // Multi-Source 100% Free Live Automatic API Fetcher (No API Key Required)
+async function fetchLiveProductData(barcode) {
+    const cleanCode = barcode.trim();
 
-            try {
-                const apiUrl = `https://api.barcodelookup.com/v3/products?barcode=${encodeURIComponent(barcode)}&formatted=y&key=${BARCODE_LOOKUP_API_KEY}`;
-                const response = await fetch(apiUrl);
-                if (!response.ok) return null;
-
-                const data = await response.json();
-                if (data && data.products && data.products.length > 0) {
-                    const prod = data.products[0];
-
-                    let price = 49;
-                    if (prod.stores && prod.stores.length > 0 && prod.stores[0].price) {
-                        price = parseFloat(prod.stores[0].price) || 49;
-                    }
-
-                    let image = "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=600&auto=format&fit=crop&q=80";
-                    if (prod.images && prod.images.length > 0) {
-                        image = prod.images[0];
-                    }
-
-                    return {
-                        barcode: prod.barcode_number || barcode,
-                        title: prod.title || prod.product_name || `Scanned Item #${barcode.slice(-4)}`,
-                        brand: prod.brand || prod.manufacturer || "Retail Brand",
-                        price: price,
-                        image: image
-                    };
-                }
-            } catch (err) {
-                console.warn("Barcode Lookup API fetch failed, falling back to local DB:", err);
-            }
-            return null;
-        }
-
-        // Updated Async Scanner Handler
-        async function handleProductScanned(barcode) {
-            if (isProcessingScan) return;
-            isProcessingScan = true;
-
-            try {
-                if (html5QrCode && typeof Html5QrcodeScannerState !== "undefined") {
-                    if (html5QrCode.getState() === 2) {
-                        html5QrCode.pause();
-                    }
-                }
-            } catch (e) { console.warn("Pause frame failed:", e); }
-
-            playScannerBeep();
-
-            const cleanBarcode = barcode.trim();
-            showToast("Searching product database...", "info");
-
-            // Step 1: Try fetching live data from Barcode Lookup API
-            let matched = await fetchProductFromBarcodeLookup(cleanBarcode);
-
-            // Step 2: Fallback to local database
-            if (!matched) {
-                matched = productsDatabase.find(p => p.barcode === cleanBarcode);
-            }
-
-            // Step 3: Fallback if completely unregistered
-            if (!matched) {
-                matched = {
-                    barcode: cleanBarcode,
-                    title: `Scanned G-Mart Item #${cleanBarcode.slice(-4)}`,
-                    brand: "G-Mart Goods",
-                    price: 49,
-                    image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=600&auto=format&fit=crop&q=80"
+    // Source 1: Open Food Facts API (Best for Mountain Dew, Cold Drinks & FMCG)
+    try {
+        const offRes = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(cleanCode)}.json`);
+        if (offRes.ok) {
+            const offData = await offRes.json();
+            if (offData && offData.status === 1 && offData.product) {
+                const p = offData.product;
+                const title = p.product_name || p.product_name_en || p.generic_name || `Scanned Item #${cleanCode.slice(-4)}`;
+                const brand = p.brands || (p.brands_tags && p.brands_tags[0]) || "FMCG Brand";
+                const image = p.image_front_url || p.image_url || "https://images.unsplash.com/photo-1542838132-92c53300491e?w=600&auto=format&fit=crop&q=80";
+                
+                return {
+                    barcode: cleanCode,
+                    title: title,
+                    brand: brand.toUpperCase(),
+                    price: 40, // Retail price
+                    image: image
                 };
             }
-
-            const existingCartItem = cart.find(item => item.barcode === cleanBarcode);
-            const initialQty = existingCartItem ? existingCartItem.qty : 1;
-
-            currentScannedItem = { ...matched, qty: initialQty };
-            showScreen2ProductDetails();
         }
+    } catch (e) {
+        console.warn("OpenFoodFacts API error:", e);
+    }
+
+    // Source 2: UPC Item DB Free Public Endpoint (For General Retail Items)
+    try {
+        const upcRes = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(cleanCode)}`);
+        if (upcRes.ok) {
+            const upcData = await upcRes.json();
+            if (upcData && upcData.items && upcData.items.length > 0) {
+                const item = upcData.items[0];
+                const image = (item.images && item.images.length > 0) ? item.images[0] : "https://images.unsplash.com/photo-1542838132-92c53300491e?w=600&auto=format&fit=crop&q=80";
+                
+                return {
+                    barcode: cleanCode,
+                    title: item.title || `Scanned Item #${cleanCode.slice(-4)}`,
+                    brand: (item.brand || "RETAIL GOODS").toUpperCase(),
+                    price: item.lowest_recorded_price ? Math.round(item.lowest_recorded_price) : 49,
+                    image: image
+                };
+            }
+        }
+    } catch (e) {
+        console.warn("UPCItemDB API error:", e);
+    }
+
+    return null;
+}
+        // Updated Async Scanner Handler
+        async function handleProductScanned(barcode) {
+    if (isProcessingScan) return;
+    isProcessingScan = true;
+
+    try {
+        if (html5QrCode && typeof Html5QrcodeScannerState !== "undefined") {
+            if (html5QrCode.getState() === 2) {
+                html5QrCode.pause();
+            }
+        }
+    } catch (e) { console.warn("Pause frame failed:", e); }
+
+    playScannerBeep();
+
+    const cleanBarcode = barcode.trim();
+    showToast("Live API se product fetch ho raha hai...", "info");
+
+    // 1. Live automatic API se fetch karo
+    let matched = await fetchLiveProductData(cleanBarcode);
+
+    // 2. Agar live API me na mile, tab local database me check karo
+    if (!matched) {
+        matched = productsDatabase.find(p => p.barcode === cleanBarcode);
+    }
+
+    // 3. Agar kahin bhi na mile (Generic Shopping Grocery Bag Fallback Image)
+    if (!matched) {
+        matched = {
+            barcode: cleanBarcode,
+            title: `Scanned Product #${cleanBarcode.slice(-4)}`,
+            brand: "GENERAL GOODS",
+            price: 40,
+            image: "https://images.unsplash.com/photo-1542838132-92c53300491e?w=600&auto=format&fit=crop&q=80"
+        };
+    }
+
+    const existingCartItem = cart.find(item => item.barcode === cleanBarcode);
+    const initialQty = existingCartItem ? existingCartItem.qty : 1;
+
+    currentScannedItem = { ...matched, qty: initialQty };
+    showScreen2ProductDetails();
+}
 
         function handleManualSubmit() {
             const input = document.getElementById('manual-code-input');
