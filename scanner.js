@@ -15,7 +15,9 @@
         { engine: "zxing", enhanced: false },
         { engine: "zbar", enhanced: false },
         { engine: "zxing", enhanced: true },
-        { engine: "zbar", enhanced: true }
+        { engine: "zbar", enhanced: true },
+        // Catalog pattern match: reads defocused barcodes the decoders can't (see barcode-match.js).
+        { engine: "match" }
     ];
     // Decode at the camera's full resolution (up to 1080p): every extra pixel per bar counts.
     const MAX_WIDTH = 1920;
@@ -25,11 +27,11 @@
     // store lists (isKnown); anything else needs two identical reads in a row.
     const CHECKSUMMED = new Set(["EAN13", "EAN8", "UPCA", "UPCE"]);
 
-    const CONFIRM_WINDOW_MS = 1500;
+    const CONFIRM_WINDOW_MS = 3000;
     const REPEAT_COOLDOWN_MS = 2500;
 
     class Scanner {
-        constructor(video, { onDetect, onStatus, onStats, isKnown } = {}) {
+        constructor(video, { onDetect, onStatus, onStats, isKnown, catalogCodes } = {}) {
             this.video = video;
             this.onDetect = onDetect || (() => {});
             this.onStatus = onStatus || (() => {});
@@ -49,6 +51,7 @@
             this.canvas = document.createElement("canvas");
             this.ctx = this.canvas.getContext("2d", { willReadFrequently: true });
             this.worker = this._makeWorker();
+            if (this.worker && catalogCodes) this.worker.setCatalog(catalogCodes);
             setInterval(() => this._emitStats(), 1000);
         }
 
@@ -67,6 +70,7 @@
                     this.onStatus("error", "Barcode decoder failed to load. Serve the app over http(s), not file://.");
                 };
                 return {
+                    setCatalog: codes => worker.postMessage({ type: "catalog", codes }),
                     decode: (image, strategy) => new Promise(resolve => {
                         const id = ++seq;
                         waiters.set(id, resolve);

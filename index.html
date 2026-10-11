@@ -345,6 +345,7 @@
         },
         onStatus: onCameraStatus,
         isKnown: code => RAISECatalog.isListed(code),
+        catalogCodes: RAISECatalog.CATALOG.map(p => p.barcode),
         onStats: s => {
             if (!s.width) return;
             // Under 1280 px wide, bars get too few pixels for reliable 1D decoding.

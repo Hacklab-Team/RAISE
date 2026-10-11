@@ -6,7 +6,7 @@
 //   ZBar               - slower; best on small and tilted barcodes and heavy JPEG artefacts.
 // The main thread rotates strategies frame by frame. Frames arrive as raw RGBA pixels, so
 // this works on older Chromium builds without OffscreenCanvas or canvas filters.
-importScripts("vendor/zxing-reader.js", "vendor/zbar.js");
+importScripts("vendor/zxing-reader.js", "vendor/zbar.js", "barcode-match.js");
 
 const ZXING_FORMATS = ["QRCode", "EAN13", "EAN8", "UPCA", "UPCE", "Code128", "Code39", "ITF"];
 const ZBAR_TYPES = {
@@ -80,6 +80,10 @@ async function zbar(image) {
 
 // strategy: { engine: "zxing" | "zbar", enhanced: bool }
 self.onmessage = async ({ data }) => {
+    if (data.type === "catalog") {
+        RAISEMatch.setCatalog(data.codes);
+        return;
+    }
     const { id, buffer, width, height, strategy } = data;
     const t0 = performance.now();
     let hit = null, error = null;
@@ -87,7 +91,13 @@ self.onmessage = async ({ data }) => {
         await ready;
         let image = new ImageData(new Uint8ClampedArray(buffer), width, height);
         if (strategy.enhanced) image = enhance(image);
-        hit = strategy.engine === "zbar" ? await zbar(image) : await zxing(image, strategy.enhanced);
+        if (strategy.engine === "match") {
+            // Blurry-frame fallback: whole-pattern match against the store catalog.
+            const r = RAISEMatch.match(image);
+            hit = r && r.accepted ? { text: r.code, format: "MATCH" } : null;
+        } else {
+            hit = strategy.engine === "zbar" ? await zbar(image) : await zxing(image, strategy.enhanced);
+        }
     } catch (e) {
         error = String(e && e.message || e);
     }
