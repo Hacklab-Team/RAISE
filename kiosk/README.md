@@ -2,20 +2,31 @@
 
 Boots the Pi straight into the RAISE self-checkout, full screen.
 
-You need Raspberry Pi OS **with desktop** (Bookworm or newer), the USB webcam plugged in, and this repo cloned on the Pi.
+You need Raspberry Pi OS **with desktop** (Bookworm or newer) and the USB webcam plugged in.
+
+## Hosted site (from a pendrive)
+
+Copy `setup-kiosk.sh` to the pendrive. On the Pi, open a terminal and run:
 
 ```bash
-git clone https://github.com/Hacklab-Team/RAISE.git
-cd RAISE
+bash /media/$USER/<PENDRIVE>/setup-kiosk.sh https://your-site.example/index.html
+sudo reboot
+```
+
+Use the `https://` address; Chromium blocks the camera on plain `http` sites. Run the script with `bash` as your normal user, not with `sudo`; it asks for sudo when it needs it.
+
+## Local copy (no internet needed)
+
+From inside a cloned repo, with no URL argument, it serves the files on `http://localhost:8080` instead:
+
+```bash
 bash kiosk/setup-kiosk.sh
 sudo reboot
 ```
 
-Run the script as your normal user, not with `sudo`; it asks for sudo when it needs it.
-
 ## What it sets up
 
-- A local web server, `raise-kiosk-server` (systemd), serving the repo at `http://localhost:8080`. Using `localhost` lets the camera and the pass encryption work without https.
+- Local mode only: a web server, `raise-kiosk-server` (systemd), serving the repo at `http://localhost:8080`.
 - A launcher, `~/.local/bin/raise-kiosk`, that opens Chromium in kiosk mode with camera permission granted automatically.
 - Autostart for your desktop: labwc, Wayfire or X11. If it guesses wrong, force one with `DESKTOP=labwc bash kiosk/setup-kiosk.sh` (or `wayfire`, `x11`).
 - Desktop auto-login, and no screen blanking.
@@ -26,18 +37,18 @@ Run the script as your normal user, not with `sudo`; it asks for sudo when it ne
 |---|---|
 | Leave the kiosk | `Alt+F4` |
 | Start it again | `~/.local/bin/raise-kiosk &` |
-| Update the app | `git pull` in the repo, then `Ctrl+Shift+R` in the kiosk |
-| Check the server | `systemctl status raise-kiosk-server` |
-| Use another port | `PORT=9000 bash kiosk/setup-kiosk.sh` |
+| Reload the app after a deploy | `Ctrl+Shift+R` in the kiosk |
+| Change the URL | Run the script again with the new URL |
 
 The Bluetooth or USB barcode scanner works as a keyboard, so you don't need to set anything up for it.
 
 ## Undo
 
 ```bash
+rm ~/.local/bin/raise-kiosk
+# local mode only:
 sudo systemctl disable --now raise-kiosk-server
 sudo rm /etc/systemd/system/raise-kiosk-server.service
-rm ~/.local/bin/raise-kiosk
 ```
 
 Then remove the `raise-kiosk` line from whichever file the script reported: `~/.config/labwc/autostart`, `~/.config/wayfire.ini`, or `~/.config/lxsession/LXDE-pi/autostart`.
