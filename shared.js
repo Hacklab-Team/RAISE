@@ -27,7 +27,9 @@
         alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
         package: '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><path d="m3.3 7 7.7 4.73a2 2 0 0 0 2 0L20.7 7"/>',
         loader: '<path d="M21 12a9 9 0 1 1-6.22-8.56"/>',
-        pause: '<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>'
+        pause: '<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>',
+        sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+        moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>'
     };
 
     function icon(name, cls = "") {
@@ -139,5 +141,23 @@
         }
     }
 
-    global.RAISEUI = { icon, hydrateIcons, esc, inr, toast, sealSVG, waveBandSVG, rosettePath, stampSeal, beep, store };
+    // Theme: saved choice, else the OS setting. The page <head> applies it before first
+    // paint; this wires the toggle button.
+    function initThemeToggle(btn) {
+        const root = document.documentElement;
+        const paint = () => {
+            const dark = root.dataset.theme === "dark";
+            btn.innerHTML = icon(dark ? "sun" : "moon");
+            btn.setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");
+            btn.title = btn.getAttribute("aria-label");
+        };
+        btn.onclick = () => {
+            root.dataset.theme = root.dataset.theme === "dark" ? "light" : "dark";
+            store("raise_theme", root.dataset.theme);
+            paint();
+        };
+        paint();
+    }
+
+    global.RAISEUI = { initThemeToggle, icon, hydrateIcons, esc, inr, toast, sealSVG, waveBandSVG, rosettePath, stampSeal, beep, store };
 })(window);

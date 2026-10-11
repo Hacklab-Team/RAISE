@@ -15,8 +15,10 @@
     const R = ["1110010", "1100110", "1101100", "1000010", "1011100", "1001110", "1010000", "1000100", "1001000", "1110100"];
     const PARITY = ["LLLLLL", "LLGLGG", "LLGGLG", "LLGGGL", "LGLLGG", "LGGLLG", "LGGGLL", "LGLGLG", "LGLGGL", "LGGLGL"];
 
-    const MIN_SCORE = 0.82;   // normalised correlation needed to accept
-    const MIN_MARGIN = 0.12;  // lead over the best *different* catalog item
+    const MIN_SCORE = 0.85;   // normalised correlation needed to accept
+    // Lead over the best *different* item. Real blurry barcodes led by 0.25-0.28; background
+    // texture on a live webcam led by at most 0.06.
+    const MIN_MARGIN = 0.18;
     const NORM_WIDTH = 160;   // detected barcode width is resampled to this many px
     const CANDIDATES = 3;     // barcode-like regions tested per view
 

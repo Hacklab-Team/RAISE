@@ -7,6 +7,15 @@
     <title>RAISE Pass</title>
     <meta name="theme-color" content="#13211c">
     <link rel="manifest" href="manifest-customer.json">
+    <script>
+        // Theme before first paint: saved choice, else the OS setting.
+        (function () {
+            var t = null;
+            try { t = JSON.parse(localStorage.getItem("raise_theme")); } catch (e) {}
+            if (t !== "light" && t !== "dark") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            document.documentElement.dataset.theme = t;
+        })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap">
@@ -115,7 +124,7 @@
 
     <!-- APP -->
     <div id="app" hidden style="display:none;flex:1;flex-direction:column">
-        <header class="top"><b>RAISE</b><span class="who" id="top-name"></span></header>
+        <header class="top"><b>RAISE</b><span class="who" id="top-name"></span><button class="theme-btn" id="theme-btn" type="button"></button></header>
 
         <section class="view" id="v-pass">
             <div class="passcard" id="pass-card">
@@ -179,6 +188,7 @@
     const KEY = "raise_accounts_v2";    // { [phone]: profile }
     const CURRENT = "raise_current_phone";
     UI.hydrateIcons();
+    UI.initThemeToggle($("theme-btn"));
     let me = null;
 
     const accounts = () => UI.store(KEY) || {};

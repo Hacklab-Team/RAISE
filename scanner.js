@@ -27,7 +27,7 @@
     // store lists (isKnown); anything else needs two identical reads in a row.
     const CHECKSUMMED = new Set(["EAN13", "EAN8", "UPCA", "UPCE"]);
 
-    const CONFIRM_WINDOW_MS = 3000;
+    const CONFIRM_WINDOW_MS = 4000;
     const REPEAT_COOLDOWN_MS = 2500;
 
     class Scanner {
@@ -251,7 +251,8 @@
                 this.pending = { text, count: 1, at: now };
             }
             const trusted = format === "QRCode" || (CHECKSUMMED.has(format) && this.isKnown(text));
-            const needed = trusted ? 1 : 2;
+            // Catalog pattern matches (blurry frames) need three agreeing frames.
+            const needed = trusted ? 1 : format === "MATCH" ? 3 : 2;
             if (this.pending.count >= needed) {
                 this.pending = null;
                 this.lastAccepted = { text, at: now };

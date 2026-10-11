@@ -7,6 +7,15 @@
     <title>RAISE Self-Checkout</title>
     <meta name="theme-color" content="#13211c">
     <link rel="manifest" href="manifest.json">
+    <script>
+        // Theme before first paint: saved choice, else the OS setting.
+        (function () {
+            var t = null;
+            try { t = JSON.parse(localStorage.getItem("raise_theme")); } catch (e) {}
+            if (t !== "light" && t !== "dark") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            document.documentElement.dataset.theme = t;
+        })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap">
@@ -175,6 +184,7 @@
             <li id="step-3"><span class="n">3</span>Pay</li>
         </ol>
         <div class="holder" id="holder" hidden></div>
+        <button class="theme-btn" id="theme-btn" type="button"></button>
     </header>
 
     <main class="main">
@@ -326,6 +336,7 @@
     const MERCHANT_VPA = "storeadmin@upi"; // demo VPA: replace with the store's real one
     const MERCHANT_NAME = "RAISE Store";
     UI.hydrateIcons();
+    UI.initThemeToggle($("theme-btn"));
 
     let stage = "pass";           // pass | register | verified | scan | pay | paid
     let user = null;              // { id, name } or guest
@@ -589,18 +600,81 @@
         render();
     });
 
-    $("manual-form").onsubmit = e => { e.preventDefault(); const v = $("manual-input").value; $("manual-input").value = ""; addByBarcode(v); };
+    // ---------- Barcode scanner / keyboard input ----------
+    // USB guns and Bluetooth HID scanner apps type the code like a keyboard. Every typed
+    // code ends up here: a pass QR (RAISE1.…) logs the customer in; digits add an item.
+    function handleCode(raw) {
+        const text = String(raw || "").trim();
+        if (!text) return;
+        if (text.startsWith("RAISE1.")) {
+            if (stage === "pass" || stage === "scan") onPassText(text);
+            return;
+        }
+        if (!/^\d{6,14}$/.test(text)) {
+            UI.beep(330, 160);
+            UI.toast("That isn't a product barcode.", "warn");
+            return;
+        }
+        if (stage === "pass") startGuest();
+        if (stage === "scan") addByBarcode(text);
+    }
 
-    // USB barcode gun (keyboard wedge): fast digit burst + Enter, when no input is focused
-    let wedge = "", wedgeAt = 0;
-    document.addEventListener("keydown", e => {
-        if (stage !== "scan" || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+    $("manual-form").onsubmit = e => { e.preventDefault(); const v = $("manual-input").value; $("manual-input").value = ""; handleCode(v); };
+
+    // Any typing goes to the barcode box: on the scan screen into the visible field, on the
+    // pass screen into a hidden buffer. Enter submits; a fast scanner burst that looks like a
+    // complete code also submits on its own, for scanners set to send no Enter.
+    const isTyping = el => el && (el.tagName === "TEXTAREA" || el.tagName === "SELECT" || (el.tagName === "INPUT" && !["button", "range", "checkbox", "radio"].includes(el.type)));
+    const looksComplete = v => /^\d{8}$|^\d{12,13}$/.test(v) || (v.startsWith("RAISE1.") && v.length > 40);
+    let passBuf = "", lastKeyAt = 0, fastRun = 0, autoTimer = null;
+
+    function noteKey() {
         const now = performance.now();
-        if (now - wedgeAt > 120) wedge = "";
-        wedgeAt = now;
-        if (/^\d$/.test(e.key)) wedge += e.key;
-        else if (e.key === "Enter" && wedge.length >= 6) { addByBarcode(wedge); wedge = ""; }
-    });
+        fastRun = now - lastKeyAt < 45 ? fastRun + 1 : 0;
+        lastKeyAt = now;
+    }
+    function scheduleAuto(getValue, submit) {
+        clearTimeout(autoTimer);
+        if (fastRun >= 4 && looksComplete(getValue().trim())) autoTimer = setTimeout(submit, 180);
+    }
+    const submitManual = () => $("manual-form").requestSubmit();
+    const submitPassBuf = () => { const v = passBuf; passBuf = ""; handleCode(v); };
+
+    $("manual-input").addEventListener("keydown", noteKey);
+    $("manual-input").addEventListener("input", () => scheduleAuto(() => $("manual-input").value, submitManual));
+
+    document.addEventListener("keydown", e => {
+        if (stage !== "pass" && stage !== "scan") return;
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        const input = $("manual-input");
+        if (document.activeElement === input || isTyping(document.activeElement)) return;
+
+        if (stage === "scan") {
+            if (e.key.length === 1) {
+                e.preventDefault();
+                noteKey();
+                input.focus({ preventScroll: true });
+                input.value += e.key;
+                input.dispatchEvent(new Event("input"));
+            } else if (e.key === "Enter" && input.value) {
+                e.preventDefault();
+                submitManual();
+            }
+            return;
+        }
+        // Pass screen: no visible field, so buffer the keystrokes.
+        if (e.key.length === 1) {
+            e.preventDefault();
+            if (performance.now() - lastKeyAt > 1500) passBuf = "";  // stale partial input
+            noteKey();
+            passBuf += e.key;
+            scheduleAuto(() => passBuf, submitPassBuf);
+        } else if (e.key === "Enter" && passBuf) {
+            e.preventDefault();
+            clearTimeout(autoTimer);
+            submitPassBuf();
+        }
+    }, true);
 
     // ---------- Pay ----------
     $("btn-pay").onclick = () => {
