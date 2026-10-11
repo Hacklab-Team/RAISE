@@ -20,7 +20,7 @@
         { barcode: "8901030865169", title: "Surf Excel Detergent Bar (250 g)", brand: "Surf Excel", price: 38, image: OFF_IMG + "890/103/086/5169/front_en.9.200.jpg" },
         { barcode: "7622202271861", title: "Cadbury Dairy Milk Silk Bubbly (46 g)", brand: "Cadbury", price: 95, image: OFF_IMG + "762/220/227/1861/front_en.9.200.jpg" },
         { barcode: "8901063371255", title: "Britannia Marie Gold (68.9 g)", brand: "Britannia", price: 10, image: "img/8901063371255.jpg" },
-        { barcode: "8901491100250", title: "Lay's American Style Cream & Onion (52.9 g)", brand: "Lay's", price: 20, image: "img/8901491100250.jpg" },
+        { barcode: "8904063258366", title: "Lay's American Style Cream & Onion (52.9 g)", brand: "Lay's", price: 20, image: "img/8901491100250.jpg" },
         { barcode: "8902080104581", title: "Pepsi (400 ml)", brand: "Pepsi", price: 20, image: "img/8902080104581.jpg" },
         { barcode: "8902080364589", title: "Mountain Dew (400 ml)", brand: "Mountain Dew", price: 20, image: "img/8902080364589.jpg" },
         // Image: "Golden Oreo cookie, Winschoten (2021)" by Donald Trung, Wikimedia Commons, CC BY-SA 4.0 (cropped).
