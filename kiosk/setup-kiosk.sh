@@ -105,7 +105,7 @@ cat > "$LAUNCHER" <<EOF
 
 mkdir -p "\$HOME/.cache"
 exec >>"\$HOME/.cache/raise-kiosk.log" 2>&1
-echo "=== \$(date) start (session: \${XDG_SESSION_TYPE:-?}, display: \${WAYLAND_DISPLAY:-\${DISPLAY:-none}})"
+echo "=== \$(date) start at \$(cut -d' ' -f1 /proc/uptime)s after boot (session: \${XDG_SESSION_TYPE:-?}, display: \${WAYLAND_DISPLAY:-\${DISPLAY:-none}})"
 
 # Several autostart hooks may call this; only one kiosk may run. The lock is held by
 # Chromium itself (exec keeps fd 9 open) until the kiosk closes.
@@ -136,15 +136,19 @@ if [ -n "\${WAYLAND_DISPLAY:-}" ]; then
     done
 fi
 
-# Wait until the page is reachable (Wi-Fi can take a while at boot). Checks every half second.
-for i in \$(seq 1 120); do
+PROFILE="\$HOME/.config/raise-kiosk-profile"
+
+# First run: wait until the page is reachable (Wi-Fi can take a while at boot). After that
+# the app is cached on the Pi (sw.js) and opens without the network, so don't wait at all.
+TRIES=120
+[ -d "\$PROFILE/Default/Service Worker" ] && TRIES=0 && echo "app cached; not waiting for network"
+for i in \$(seq 1 \$TRIES); do
     if curl -s -o /dev/null --max-time 2 "$URL"; then echo "page reachable after check \$i"; break; fi
     sleep 0.5
 done
 
-# The kiosk uses its own Chromium profile, so it starts as a separate full-screen instance
-# even if a normal Chromium window is already open (otherwise --kiosk is ignored).
-PROFILE="\$HOME/.config/raise-kiosk-profile"
+# The kiosk uses its own Chromium profile (PROFILE above), so it starts as a separate
+# full-screen instance even if a normal Chromium window is already open.
 
 # After a power cut Chromium shows a "Restore pages?" bubble; mark the last exit as clean.
 PREFS="\$PROFILE/Default/Preferences"
@@ -152,7 +156,7 @@ if [ -f "\$PREFS" ]; then
     sed -i 's/"exited_cleanly":false/"exited_cleanly":true/; s/"exit_type":"[^"]*"/"exit_type":"Normal"/' "\$PREFS"
 fi
 
-echo "launching $CHROMIUM"
+echo "launching $CHROMIUM at \$(cut -d' ' -f1 /proc/uptime)s after boot"
 exec "$CHROMIUM" \\
     --user-data-dir="\$PROFILE" \\
     --kiosk "$URL" \\

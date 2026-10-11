@@ -740,5 +740,9 @@
     startCamera().then(setupFocus);
 })();
 </script>
+<script>
+    // Offline cache: makes the kiosk open fast at boot, even before Wi-Fi connects (sw.js).
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(e => console.warn("SW:", e));
+</script>
 </body>
 </html>
