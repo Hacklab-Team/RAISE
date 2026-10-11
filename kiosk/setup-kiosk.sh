@@ -98,6 +98,19 @@ fi
 # Let the desktop finish starting.
 sleep 5
 
+# Started from SSH (or Raspberry Pi Connect's web shell)? Then there is no display in the
+# environment; attach to the Pi's own desktop session instead.
+if [ -z "\${WAYLAND_DISPLAY:-}" ] && [ -z "\${DISPLAY:-}" ]; then
+    export XDG_RUNTIME_DIR="\${XDG_RUNTIME_DIR:-/run/user/\$(id -u)}"
+    SOCK="\$(ls "\$XDG_RUNTIME_DIR"/wayland-[0-9]* 2>/dev/null | grep -v '\\.lock\$' | head -n1)"
+    if [ -n "\$SOCK" ]; then
+        export WAYLAND_DISPLAY="\$(basename "\$SOCK")" XDG_SESSION_TYPE=wayland
+    else
+        export DISPLAY=:0 XDG_SESSION_TYPE=x11
+    fi
+    echo "no display in environment; using \${WAYLAND_DISPLAY:-\$DISPLAY}"
+fi
+
 # Wait until the page is reachable (Wi-Fi or the local server can take a while at boot).
 for i in \$(seq 1 60); do
     if curl -s -o /dev/null --max-time 3 "$URL"; then echo "page reachable after \${i}s"; break; fi
