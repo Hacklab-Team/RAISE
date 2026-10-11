@@ -95,9 +95,6 @@ if ! flock -n 9; then
     exit 0
 fi
 
-# Let the desktop finish starting.
-sleep 5
-
 # Started from SSH (or Raspberry Pi Connect's web shell)? Then there is no display in the
 # environment; attach to the Pi's own desktop session instead.
 if [ -z "\${WAYLAND_DISPLAY:-}" ] && [ -z "\${DISPLAY:-}" ]; then
@@ -111,10 +108,18 @@ if [ -z "\${WAYLAND_DISPLAY:-}" ] && [ -z "\${DISPLAY:-}" ]; then
     echo "no display in environment; using \${WAYLAND_DISPLAY:-\$DISPLAY}"
 fi
 
-# Wait until the page is reachable (Wi-Fi or the local server can take a while at boot).
-for i in \$(seq 1 60); do
-    if curl -s -o /dev/null --max-time 3 "$URL"; then echo "page reachable after \${i}s"; break; fi
-    sleep 1
+# On Wayland, make sure the compositor socket exists (normally it already does).
+if [ -n "\${WAYLAND_DISPLAY:-}" ]; then
+    for _ in \$(seq 1 50); do
+        [ -S "\${XDG_RUNTIME_DIR:-/run/user/\$(id -u)}/\$WAYLAND_DISPLAY" ] && break
+        sleep 0.1
+    done
+fi
+
+# Wait until the page is reachable (Wi-Fi can take a while at boot). Checks every half second.
+for i in \$(seq 1 120); do
+    if curl -s -o /dev/null --max-time 2 "$URL"; then echo "page reachable after check \$i"; break; fi
+    sleep 0.5
 done
 
 # The kiosk uses its own Chromium profile, so it starts as a separate full-screen instance
@@ -142,7 +147,12 @@ exec "$CHROMIUM" \\
     --autoplay-policy=no-user-gesture-required \\
     --overscroll-history-navigation=0 \\
     --disable-pinch \\
-    --password-store=basic
+    --password-store=basic \\
+    --disable-sync \\
+    --disable-extensions \\
+    --disable-component-update \\
+    --no-default-browser-check \\
+    --enable-logging=stderr
 EOF
 chmod +x "$LAUNCHER"
 

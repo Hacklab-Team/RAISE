@@ -28,6 +28,11 @@
     const CHECKSUMMED = new Set(["EAN13", "EAN8", "UPCA", "UPCE"]);
 
     const CONFIRM_WINDOW_MS = 4000;
+
+    // Raspberry Pi registers internal video nodes (HEVC decoder, ISP back end, codecs)
+    // that browsers list as cameras. They can never be a webcam.
+    const NOT_A_CAMERA = /pispbe|rpivid|rpi-hevc|hevc|codec|bcm2835|\bisp\b|unicam|rp1-cfe|loopback|dummy/i;
+    const WEBCAM_HINT = /usb|webcam|uvc|camera|logitech|hd pro|integrated/i;
     const REPEAT_COOLDOWN_MS = 2500;
 
     class Scanner {
@@ -102,6 +107,21 @@
             return devices.filter(d => d.kind === "videoinput");
         }
 
+        // Open one camera. 1080p gives more pixels per bar; if a webcam can't deliver it over
+        // the Pi's USB bus ("could not start video source"), retry at 720p.
+        async _open(deviceId) {
+            const base = { frameRate: { ideal: 30 } };
+            // On a phone, prefer the rear camera (it has autofocus); a single USB webcam ignores this.
+            if (deviceId) base.deviceId = { exact: deviceId };
+            else base.facingMode = { ideal: "environment" };
+            try {
+                return await navigator.mediaDevices.getUserMedia({ audio: false, video: { ...base, width: { ideal: 1920 }, height: { ideal: 1080 } } });
+            } catch (err) {
+                if (err.name !== "NotReadableError" && err.name !== "AbortError") throw err;
+                return await navigator.mediaDevices.getUserMedia({ audio: false, video: { ...base, width: { ideal: 1280 }, height: { ideal: 720 } } });
+            }
+        }
+
         async start(deviceId) {
             if (!navigator.mediaDevices?.getUserMedia) {
                 this.onStatus("error", "Camera needs https or localhost.");
@@ -113,29 +133,55 @@
             }
             this.onStatus("starting");
             this._stopTracks();
-            // More pixels per bar is the single biggest win for 1D barcodes on a webcam.
-            const video = {
-                width: { ideal: 1920 },
-                height: { ideal: 1080 },
-                frameRate: { ideal: 30 }
+
+            // Try: the chosen camera, then the browser default, then every listed camera
+            // (USB webcams first). Raspberry Pi also lists internal codec/ISP video nodes
+            // as "cameras"; those are skipped.
+            const tried = new Set();
+            let stream = null, lastErr = null;
+            const attempt = async (id) => {
+                if (tried.has(id || "default")) return;
+                tried.add(id || "default");
+                try {
+                    const s = await this._open(id);
+                    const label = s.getVideoTracks()[0]?.label || "";
+                    if (NOT_A_CAMERA.test(label)) {
+                        s.getTracks().forEach(t => t.stop());
+                        console.warn("Skipping non-camera video device:", label);
+                        lastErr = { name: "NotFoundError" };
+                        return;
+                    }
+                    stream = s;
+                } catch (err) {
+                    console.warn("Camera", id || "default", "failed:", err.name, err.message);
+                    lastErr = err;
+                }
             };
-            // On a phone, prefer the rear camera (it has autofocus); a single USB webcam ignores this.
-            if (deviceId) video.deviceId = { exact: deviceId };
-            else video.facingMode = { ideal: "environment" };
-            try {
-                this.stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
-            } catch (err) {
+            if (deviceId) await attempt(deviceId);
+            if (!stream) await attempt(null);
+            if (!stream) {
+                const cams = (await this.listCameras()).filter(c => !NOT_A_CAMERA.test(c.label));
+                cams.sort((a, b) => WEBCAM_HINT.test(b.label) - WEBCAM_HINT.test(a.label));
+                for (const c of cams) {
+                    await attempt(c.deviceId);
+                    if (stream) break;
+                }
+            }
+            if (!stream) {
                 const messages = {
                     NotAllowedError: "Camera permission was blocked. Allow it in the browser's site settings.",
-                    NotFoundError: "No camera found. Plug in the USB webcam and retry.",
-                    NotReadableError: "Camera is in use by another app.",
+                    NotFoundError: "No webcam found. Plug in the USB webcam and press Retry.",
+                    NotReadableError: "The webcam couldn't start. It may be in use by another app; unplug and replug it, then press Retry.",
                     OverconstrainedError: "Selected camera is unavailable."
                 };
-                this.onStatus("error", messages[err.name] || "Camera could not start.");
+                this.onStatus("error", messages[lastErr?.name] || `Camera could not start (${lastErr?.name || "unknown error"}).`);
                 return false;
             }
+
+            this.stream = stream;
             this.track = this.stream.getVideoTracks()[0];
-            this.deviceId = this.track.getSettings().deviceId || deviceId || null;
+            this.deviceId = this.track.getSettings().deviceId || null;
+            console.info("Camera started:", this.track.label, JSON.stringify(this.track.getSettings()));
             await this._tuneCamera(this.track);
 
             this.video.srcObject = this.stream;

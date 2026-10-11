@@ -386,6 +386,7 @@
             el.hidden = false;
             el.innerHTML = UI.icon("video-off") + `<p>${UI.esc(detail)}</p><button class="btn" id="btn-retry">Retry camera</button><p class="mute" style="font-size:13px;color:#9fb2a8">You can still type barcode numbers manually.</p>`;
             $("btn-retry").onclick = () => startCamera();
+            populateCameras();  // let staff pick another camera if the automatic choice failed
         }
     }
     $("video").addEventListener("loadedmetadata", () => {
