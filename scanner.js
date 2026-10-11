@@ -17,7 +17,8 @@
         { engine: "zxing", enhanced: true },
         { engine: "zbar", enhanced: true }
     ];
-    const MAX_WIDTH = 1280;
+    // Decode at the camera's full resolution (up to 1080p): every extra pixel per bar counts.
+    const MAX_WIDTH = 1920;
 
     // A motion-smeared frame can decode to a wrong number that still passes the EAN
     // check digit (seen in testing). So one read is accepted only for a barcode the
