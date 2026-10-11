@@ -76,6 +76,26 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now raise-kiosk-server.service
 fi
 
+echo "==> Camera access"
+# Webcam device files belong to the "video" group.
+if ! id -nG "$USER" | grep -qw video; then
+    sudo usermod -aG video "$USER"
+    echo "    added $USER to the video group (takes effect after reboot)"
+fi
+# Pre-approve the camera for the kiosk site, so Chromium never needs to ask.
+ORIGIN="$(printf '%s' "$URL" | sed -E 's#^(https?://[^/]+).*#\1#')"
+for POLICY_DIR in /etc/chromium/policies/managed /etc/chromium-browser/policies/managed; do
+    sudo mkdir -p "$POLICY_DIR"
+    sudo tee "$POLICY_DIR/raise-kiosk.json" >/dev/null <<EOF
+{
+  "VideoCaptureAllowed": true,
+  "VideoCaptureAllowedUrls": ["$ORIGIN"],
+  "AudioCaptureAllowed": false
+}
+EOF
+done
+echo "    camera allowed for $ORIGIN (Chromium policy)"
+
 echo "==> Kiosk launcher: $LAUNCHER"
 mkdir -p "$(dirname "$LAUNCHER")"
 cat > "$LAUNCHER" <<EOF
@@ -141,7 +161,7 @@ exec "$CHROMIUM" \\
     --disable-infobars \\
     --no-first-run \\
     --disable-session-crashed-bubble \\
-    --disable-features=Translate,TranslateUI \\
+    --disable-features=Translate,TranslateUI,WebRtcPipeWireCamera \\
     --check-for-update-interval=31536000 \\
     --use-fake-ui-for-media-stream \\
     --autoplay-policy=no-user-gesture-required \\
