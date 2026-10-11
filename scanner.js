@@ -1,55 +1,88 @@
-// Webcam barcode/QR scanner built on zxing-wasm (zxing-cpp compiled to WebAssembly).
-// It's much faster and more tolerant of blurry, fixed-focus USB webcams than
-// the pure-JS ZXing port used by html5-qrcode, which matters on a Raspberry Pi.
+// Webcam barcode/QR scanner for the kiosk.
 //
-// One camera stream stays open for the whole session. The kiosk switches
-// between "pass" mode (QR) and "product" mode (EAN/UPC/Code 128) instead of
-// tearing the camera down and re-requesting it.
+// Decoding runs in a Web Worker (scan-worker.js) with two WebAssembly decoders, ZXing and
+// ZBar. Each live frame gets one strategy, rotating through a schedule, so within a few
+// frames every barcode is tried by both decoders on both the plain and the
+// contrast-enhanced image. Measured on simulated USB-webcam frames (blur, motion, glare,
+// MJPEG artefacts), the rotation covers far more cases than any single decoder.
+//
+// One camera stream stays open for the whole session. The kiosk switches between
+// "pass" mode (QR) and "product" mode (EAN/UPC/Code 128) without restarting the camera.
 (function (global) {
-    // The on-screen guide is only a hint: decoding always reads the whole frame, because
-    // cropping to the guide made small or off-centre barcodes fail in testing.
-    const MODES = {
-        pass: { formats: ["QRCode"] },
-        product: { formats: ["EAN13", "EAN8", "UPCA", "UPCE", "Code128", "Code39", "ITF"] }
-    };
-    // EAN/UPC carry a check digit, so one valid read is trustworthy. Code 128/39/ITF
-    // can misread, so those need two identical reads in a row.
+    // Every frame is checked for both QR passes and product barcodes; the kiosk
+    // routes by content. ZXing reads QR; ZBar adds linear-code coverage.
+    const SCHEDULE = [
+        { engine: "zxing", enhanced: false },
+        { engine: "zbar", enhanced: false },
+        { engine: "zxing", enhanced: true },
+        { engine: "zbar", enhanced: true }
+    ];
+    const MAX_WIDTH = 1280;
+
+    // A motion-smeared frame can decode to a wrong number that still passes the EAN
+    // check digit (seen in testing). So one read is accepted only for a barcode the
+    // store lists (isKnown); anything else needs two identical reads in a row.
     const CHECKSUMMED = new Set(["EAN13", "EAN8", "UPCA", "UPCE"]);
 
-    const MAX_DECODE_WIDTH = 1920;
-    const IDLE_DELAY_MS = 30;
-    const CONFIRM_WINDOW_MS = 1200;
+    const CONFIRM_WINDOW_MS = 1500;
     const REPEAT_COOLDOWN_MS = 2500;
 
     class Scanner {
-        constructor(video, { onDetect, onStatus } = {}) {
+        constructor(video, { onDetect, onStatus, onStats, isKnown } = {}) {
             this.video = video;
             this.onDetect = onDetect || (() => {});
             this.onStatus = onStatus || (() => {});
+            this.onStats = onStats || (() => {});
+            this.isKnown = isKnown || (() => false);
             this.onMiss = null;
             this.mode = "pass";
             this.stream = null;
+            this.track = null;
             this.deviceId = null;
             this.paused = false;
             this.running = false;
-            this.canvas = document.createElement("canvas");
-            this.ctx = this.canvas.getContext("2d", { willReadFrequently: true });
+            this.step = 0;
             this.pending = null;      // { text, count, at }
             this.lastAccepted = null; // { text, at }
-            this.decoderReady = this._loadDecoder();
+            this.decodes = 0;
+            this.canvas = document.createElement("canvas");
+            this.ctx = this.canvas.getContext("2d", { willReadFrequently: true });
+            this.worker = this._makeWorker();
+            setInterval(() => this._emitStats(), 1000);
         }
 
-        async _loadDecoder() {
-            if (!global.ZXingWASM) throw new Error("Barcode decoder failed to load. Check the network connection.");
-            await global.ZXingWASM.prepareZXingModule({
-                overrides: { locateFile: (path) => "vendor/" + path },
-                fireImmediately: true
-            });
+        _makeWorker() {
+            try {
+                const worker = new Worker("scan-worker.js");
+                const waiters = new Map();
+                let seq = 0;
+                worker.onmessage = ({ data }) => {
+                    const resolve = waiters.get(data.id);
+                    waiters.delete(data.id);
+                    if (resolve) resolve(data);
+                };
+                worker.onerror = (e) => {
+                    console.error("Scan worker failed:", e.message);
+                    this.onStatus("error", "Barcode decoder failed to load. Serve the app over http(s), not file://.");
+                };
+                return {
+                    decode: (image, strategy) => new Promise(resolve => {
+                        const id = ++seq;
+                        waiters.set(id, resolve);
+                        const buffer = image.data.buffer;
+                        worker.postMessage({ id, buffer, width: image.width, height: image.height, strategy }, [buffer]);
+                    })
+                };
+            } catch (e) {
+                console.error("Web Worker unavailable:", e);
+                return null;
+            }
         }
 
         setMode(mode) {
             this.mode = mode;
             this.pending = null;
+            this.step = 0;
         }
 
         pause() { this.paused = true; this.pending = null; }
@@ -69,14 +102,13 @@
                 this.onStatus("error", "Camera needs https or localhost.");
                 return false;
             }
-            this.onStatus("starting");
-            this._stopTracks();
-            try {
-                await this.decoderReady;
-            } catch (e) {
-                this.onStatus("error", e.message);
+            if (!this.worker) {
+                this.onStatus("error", "This browser can't run the barcode decoder (no Web Worker support).");
                 return false;
             }
+            this.onStatus("starting");
+            this._stopTracks();
+            // More pixels per bar is the single biggest win for 1D barcodes on a webcam.
             const video = {
                 width: { ideal: 1920 },
                 height: { ideal: 1080 },
@@ -95,15 +127,15 @@
                 this.onStatus("error", messages[err.name] || "Camera could not start.");
                 return false;
             }
-            const track = this.stream.getVideoTracks()[0];
-            this.deviceId = track.getSettings().deviceId || deviceId || null;
-            this._tryContinuousFocus(track);
+            this.track = this.stream.getVideoTracks()[0];
+            this.deviceId = this.track.getSettings().deviceId || deviceId || null;
+            await this._tuneCamera(this.track);
 
             this.video.srcObject = this.stream;
             this.video.setAttribute("playsinline", "");
             this.video.muted = true;
             await this.video.play().catch(() => {});
-            this.onStatus("live", track.label);
+            this.onStatus("live", this.track.label);
 
             if (!this.running) {
                 this.running = true;
@@ -112,18 +144,29 @@
             return true;
         }
 
-        _tryContinuousFocus(track) {
-            try {
-                const caps = track.getCapabilities ? track.getCapabilities() : {};
-                if (caps.focusMode && caps.focusMode.includes("continuous")) {
-                    track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
-                }
-            } catch (e) { /* not supported */ }
+        // Ask the webcam (UVC controls, where Chrome exposes them) for autofocus,
+        // auto exposure and a sharper image. Unsupported settings are skipped.
+        async _tuneCamera(track) {
+            let caps = {};
+            try { caps = track.getCapabilities ? track.getCapabilities() : {}; } catch (e) { /* none */ }
+            const advanced = [];
+            if (caps.focusMode?.includes("continuous")) advanced.push({ focusMode: "continuous" });
+            if (caps.exposureMode?.includes("continuous")) advanced.push({ exposureMode: "continuous" });
+            if (caps.whiteBalanceMode?.includes("continuous")) advanced.push({ whiteBalanceMode: "continuous" });
+            if (caps.sharpness && caps.sharpness.max > caps.sharpness.min) {
+                const { min, max } = caps.sharpness;
+                advanced.push({ sharpness: Math.round(min + (max - min) * 0.75) });
+            }
+            for (const c of advanced) {
+                await track.applyConstraints({ advanced: [c] }).catch(() => {});
+            }
+            this.autofocus = !!caps.focusMode?.includes("continuous");
         }
 
         _stopTracks() {
             if (this.stream) this.stream.getTracks().forEach(t => t.stop());
             this.stream = null;
+            this.track = null;
         }
 
         stop() {
@@ -132,59 +175,52 @@
             this.video.srcObject = null;
         }
 
+        _emitStats() {
+            const s = this.track ? this.track.getSettings() : {};
+            this.onStats({
+                width: s.width || this.video.videoWidth || 0,
+                height: s.height || this.video.videoHeight || 0,
+                scansPerSecond: this.decodes,
+                autofocus: this.autofocus,
+                live: !!this.track && !this.paused
+            });
+            this.decodes = 0;
+        }
+
         async _loop() {
             while (this.running) {
-                if (!this.paused && this.video.readyState >= 2 && this.video.videoWidth) {
-                    try {
-                        await this._decodeFrame();
-                    } catch (e) {
-                        console.warn("Decode error:", e);
-                    }
+                if (this.paused || this.video.readyState < 2 || !this.video.videoWidth) {
+                    await new Promise(r => setTimeout(r, 100));
+                    continue;
                 }
-                await new Promise(r => setTimeout(r, IDLE_DELAY_MS));
+                try {
+                    await this._decodeFrame();
+                } catch (e) {
+                    console.warn("Decode error:", e);
+                    await new Promise(r => setTimeout(r, 100));
+                }
             }
         }
 
         async _decodeFrame() {
-            const mode = MODES[this.mode];
+            const mode = this.mode;
+            const strategy = SCHEDULE[this.step++ % SCHEDULE.length];
             const vw = this.video.videoWidth, vh = this.video.videoHeight;
-            const scale = Math.min(1, MAX_DECODE_WIDTH / vw);
-            const cw = Math.round(vw * scale), ch = Math.round(vh * scale);
-            if (this.canvas.width !== cw) this.canvas.width = cw;
-            if (this.canvas.height !== ch) this.canvas.height = ch;
-
-            // Pass 1: plain frame (cheap, handles sharp codes).
-            this.ctx.filter = "none";
-            this.ctx.drawImage(this.video, 0, 0, cw, ch);
-            let hit = await this._read(this.ctx.getImageData(0, 0, cw, ch), mode, false);
-
-            // Pass 2: contrast-stretched grayscale, no downscale, single-line accept.
-            // Rescues soft, low-contrast webcam frames (tested: 0/6 -> 4/6 on blurred codes).
-            if (!hit && this.mode === "product" && !this.paused) {
-                this.ctx.filter = "grayscale(1) contrast(2.2) brightness(1.05)";
-                this.ctx.drawImage(this.video, 0, 0, cw, ch);
-                this.ctx.filter = "none";
-                hit = await this._read(this.ctx.getImageData(0, 0, cw, ch), mode, true);
-            }
-            if (this.paused) return;
-            if (hit) this._consider(hit.text.trim(), hit.format, mode);
-            else this.onMiss && this.onMiss();
+            const scale = Math.min(1, MAX_WIDTH / vw);
+            const w = Math.round(vw * scale), h = Math.round(vh * scale);
+            if (this.canvas.width !== w) this.canvas.width = w;
+            if (this.canvas.height !== h) this.canvas.height = h;
+            this.ctx.drawImage(this.video, 0, 0, w, h);
+            const image = this.ctx.getImageData(0, 0, w, h);
+            const result = await this.worker.decode(image, strategy);
+            this.decodes++;
+            if (result.error) console.warn("Decoder:", result.error);
+            if (this.paused || mode !== this.mode) return;
+            if (result.hit) this._consider(result.hit.text, result.hit.format);
+            else if (this.onMiss) this.onMiss();
         }
 
-        async _read(image, mode, enhanced) {
-            const results = await global.ZXingWASM.readBarcodes(image, {
-                formats: mode.formats,
-                tryHarder: true,
-                tryRotate: true,
-                tryInvert: false,
-                tryDownscale: !enhanced,
-                minLineCount: enhanced ? 1 : 2,
-                maxNumberOfSymbols: 1
-            });
-            return results.find(r => r.isValid && r.text) || null;
-        }
-
-        _consider(text, format, mode) {
+        _consider(text, format) {
             const now = performance.now();
             if (this.lastAccepted && this.lastAccepted.text === text && now - this.lastAccepted.at < REPEAT_COOLDOWN_MS) {
                 this.lastAccepted.at = now; // still in view: extend the cooldown
@@ -196,7 +232,8 @@
             } else {
                 this.pending = { text, count: 1, at: now };
             }
-            const needed = this.mode === "product" && !CHECKSUMMED.has(format) ? 2 : 1;
+            const trusted = format === "QRCode" || (CHECKSUMMED.has(format) && this.isKnown(text));
+            const needed = trusted ? 1 : 2;
             if (this.pending.count >= needed) {
                 this.pending = null;
                 this.lastAccepted = { text, at: now };

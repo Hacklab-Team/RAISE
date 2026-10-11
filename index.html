@@ -66,6 +66,9 @@
         .cam-tools { display: flex; align-items: center; gap: var(--s2); padding: 4px; background: var(--band); border-radius: var(--r-md); }
         .cam-tools .icon-btn { color: var(--band-mute); } .cam-tools .icon-btn:hover { background: var(--band-2); color: #fff; }
         .cam-tools .icon-btn[aria-pressed="true"] { background: #3fbf9b; color: #07241b; }
+        .cam-stat { padding: 0 var(--s2); font-family: var(--mono); font-size: 11px; color: var(--band-mute); white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .cam-stat b { color: var(--band-ink); font-weight: 500; }
+        .cam-stat .low { color: #f2b45a; }
 
         .manual { display: flex; gap: var(--s2); }
         .manual .field { font-family: var(--mono); letter-spacing: .04em; }
@@ -188,6 +191,7 @@
                 <div class="cam-row">
                     <p class="cam-instruction grow" id="instruction">Hold your RAISE Pass up to the camera</p>
                     <div class="cam-tools">
+                        <span class="cam-stat" id="cam-stat" title="Camera resolution · decode attempts per second · autofocus">—</span>
                         <select class="select" id="cam-select" aria-label="Camera" hidden></select>
                         <button class="icon-btn" id="btn-mirror" aria-pressed="false" title="Mirror preview" aria-label="Mirror preview"><svg data-icon="mirror"></svg></button>
                         <button class="icon-btn" id="btn-restart" title="Restart camera" aria-label="Restart camera"><svg data-icon="refresh"></svg></button>
@@ -298,7 +302,6 @@
 
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-<script src="vendor/zxing-reader.js"></script>
 <script src="vendor/qrcode.min.js"></script>
 <script src="shared.js"></script>
 <script src="pass.js"></script>
@@ -320,8 +323,21 @@
     // ---------- Scanner ----------
     let lastSeen = performance.now(), tipShown = false;
     const scanner = new RAISEScanner($("video"), {
-        onDetect: (text) => (lastSeen = performance.now(), stage === "pass" ? onPassText(text) : stage === "scan" ? addByBarcode(text) : null),
-        onStatus: onCameraStatus
+        onDetect: (text, format) => {
+            lastSeen = performance.now();
+            const isPass = format === "QRCode";
+            if (stage === "pass" && isPass) return onPassText(text);
+            if (stage === "pass" && !isPass) { startGuest(); return addByBarcode(text); }  // no pass needed to start
+            if (stage === "scan" && !isPass) return addByBarcode(text);
+        },
+        onStatus: onCameraStatus,
+        isKnown: code => RAISECatalog.isListed(code),
+        onStats: s => {
+            if (!s.width) return;
+            // Under 1280 px wide, bars get too few pixels for reliable 1D decoding.
+            const res = s.width < 1280 ? `<span class="low">${s.width}×${s.height}</span>` : `<b>${s.width}×${s.height}</b>`;
+            $("cam-stat").innerHTML = `${res} · ${s.live ? `<b>${s.scansPerSecond}</b>/s` : "paused"}${s.autofocus ? " · AF" : ""}`;
+        }
     });
 
     // No read for 8s while scanning: tell the shopper what actually helps a webcam.
@@ -431,11 +447,12 @@
         setTimeout(() => stage === "verified" && setStage("scan"), 1700);
     }
 
-    $("btn-guest").onclick = () => {
+    function startGuest() {
         user = { id: null, name: "Guest" };
         const h = $("holder"); h.hidden = false; h.innerHTML = UI.icon("user") + "<span>Guest</span>";
         setStage("scan");
-    };
+    }
+    $("btn-guest").onclick = startGuest;
     const toPassTab = () => setStage("pass"), toRegTab = () => setStage("register");
     $("seg-scan").onclick = toPassTab; $("seg-reg").onclick = toRegTab;
     $("seg2-scan").onclick = toPassTab; $("seg2-reg").onclick = toRegTab;
