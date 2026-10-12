@@ -40,6 +40,9 @@
         .holder { display: flex; align-items: center; gap: var(--s2); height: 36px; padding: 0 var(--s3); border: 1px solid var(--band-line); border-radius: var(--r-md); background: var(--band-2); font-size: var(--t-sm); }
         .holder .icon { color: #3fbf9b; }
         .holder .pid { font-family: var(--mono); font-size: 11px; color: var(--band-mute); }
+        .holder .link-card { margin-left: var(--s1); height: 26px; padding: 0 var(--s2); border: 1px solid var(--band-line); border-radius: var(--r-sm); background: transparent; color: var(--band-ink); font-size: var(--t-xs); font-weight: 600; cursor: pointer; }
+        .holder .link-card:hover { background: var(--band); }
+        .holder .nfc-state { margin-left: var(--s1); font-size: var(--t-xs); color: #3fbf9b; }
 
         /* Main two-pane */
         .main { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(340px, 1fr); gap: var(--s4); padding: var(--s4); min-height: 0; }
@@ -462,7 +465,7 @@
         try {
             const p = await RAISEPass.open(text);
             UI.beep();
-            verified({ id: p.id, name: p.n });
+            verified({ id: p.id, name: p.n, token: text });
         } catch (e) {
             UI.beep(330, 160);
             UI.toast(e.message, "warn");
@@ -475,15 +478,82 @@
         $("verified-name").textContent = "Welcome, " + u.name.split(" ")[0];
         setStage("verified");
         UI.stampSeal($("verified-seal").querySelector(".seal"));
-        const h = $("holder");
-        h.hidden = false;
-        h.innerHTML = UI.icon("shield") + `<span>${UI.esc(u.name)}</span><span class="pid">${UI.esc(RAISEPass.formatPassId(u.id))}</span>`;
+        renderHolder();
         setTimeout(() => stage === "verified" && setStage("scan"), 1700);
+    }
+
+    function renderHolder() {
+        const h = $("holder");
+        if (!user) { h.hidden = true; return; }
+        h.hidden = false;
+        if (!user.id) { h.innerHTML = UI.icon("user") + "<span>Guest</span>"; return; }
+        const linked = Object.values(nfcCards()).some(c => c.id === user.id);
+        const action = linked
+            ? `<span class="nfc-state">NFC card linked</span>`
+            : `<button class="link-card" id="btn-link-card" type="button">${nfcLink ? "Tap card…" : "Link NFC card"}</button>`;
+        h.innerHTML = UI.icon("shield") + `<span>${UI.esc(user.name)}</span><span class="pid">${UI.esc(RAISEPass.formatPassId(user.id))}</span>${action}`;
+        const b = $("btn-link-card");
+        if (b) b.onclick = () => nfcLink ? cancelNfcLink() : startNfcLink(user, renderHolder);
+    }
+
+    // ---------- NFC cards ----------
+    // The GPIO NFC reader (kiosk/nfc-bridge.py) types "nfc-<uid>" + Enter like a keyboard.
+    // A card is linked to a signed pass on this kiosk; tapping it logs that customer in.
+    // Only a SHA-256 of the card UID is stored, never the raw UID.
+    const NFC_KEY = "raise_nfc_cards";
+    const nfcCards = () => UI.store(NFC_KEY) || {};
+    let nfcLink = null, nfcLinkTimer = null, linkBuf = "";
+
+    async function uidKey(uid) {
+        const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("raise-nfc:" + uid));
+        return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, "0")).join("");
+    }
+
+    function startNfcLink(u, onUpdate) {
+        nfcLink = { token: u.token, id: u.id, name: u.name, onUpdate };
+        linkBuf = "";
+        if (document.activeElement) document.activeElement.blur();
+        clearTimeout(nfcLinkTimer);
+        nfcLinkTimer = setTimeout(() => { cancelNfcLink(); UI.toast("No card tapped. Try Link NFC card again.", "warn"); }, 30000);
+        UI.toast("Tap the NFC card on the reader", "busy");
+        onUpdate && onUpdate("waiting");
+    }
+
+    function cancelNfcLink() {
+        const cb = nfcLink && nfcLink.onUpdate;
+        nfcLink = null; linkBuf = "";
+        clearTimeout(nfcLinkTimer);
+        cb && cb("cancelled");
+    }
+
+    async function handleNfc(uid) {
+        const key = await uidKey(uid);
+        const cards = nfcCards();
+        if (nfcLink) {
+            const link = nfcLink;
+            for (const k in cards) if (cards[k].id === link.id) delete cards[k];  // one card per pass
+            const movedFrom = cards[key] && cards[key].id !== link.id ? cards[key].name : null;
+            cards[key] = { token: link.token, id: link.id, name: link.name, linkedAt: Date.now() };
+            UI.store(NFC_KEY, cards);
+            nfcLink = null; clearTimeout(nfcLinkTimer);
+            UI.beep();
+            UI.toast(movedFrom ? `Card moved from ${movedFrom} to ${link.name}` : `Card linked to ${link.name}`);
+            link.onUpdate && link.onUpdate("linked");
+            return;
+        }
+        if (stage !== "pass" && stage !== "scan") return;
+        const entry = cards[key];
+        if (!entry) {
+            UI.beep(330, 160);
+            UI.toast("This card isn't linked yet. Register, or log in with your pass QR and tap Link NFC card.", "warn");
+            return;
+        }
+        onPassText(entry.token);  // the stored pass is verified again, exactly like a scanned QR
     }
 
     function startGuest() {
         user = { id: null, name: "Guest" };
-        const h = $("holder"); h.hidden = false; h.innerHTML = UI.icon("user") + "<span>Guest</span>";
+        renderHolder();
         setStage("scan");
     }
     $("btn-guest").onclick = startGuest;
@@ -511,15 +581,26 @@
               <div class="cam-row" style="margin-top:12px;justify-content:center;flex-wrap:wrap">
                 <button class="btn" id="btn-print">${UI.icon("printer")} Print</button>
                 <button class="btn" id="btn-save">${UI.icon("download")} Save image</button>
+                <button class="btn" id="btn-link-nfc">${UI.icon("plus")} Link NFC card</button>
                 <button class="btn btn--primary" id="btn-start">Start shopping ${UI.icon("arrow-right")}</button>
-              </div>`;
+              </div>
+              <p class="hint" id="nfc-link-status" style="text-align:center">Optional: link an NFC card to log in with a tap next time.</p>`;
             new QRCode($("pass-qr"), { text: token, width: 188, height: 188, correctLevel: QRCode.CorrectLevel.M });
             $("btn-print").onclick = () => window.print();
             $("btn-save").onclick = () => {
                 const img = $("pass-qr").querySelector("img");
                 const a = document.createElement("a"); a.href = img.src; a.download = "raise-pass.png"; a.click();
             };
-            $("btn-start").onclick = () => verified({ id: payload.id, name: payload.n });
+            const newUser = { id: payload.id, name: payload.n, token };
+            const linkStatus = state => {
+                const el = $("nfc-link-status"), b = $("btn-link-nfc");
+                if (!el || !b) return;
+                if (state === "waiting") { el.textContent = "Tap the card on the NFC reader now…"; b.innerHTML = UI.icon("x") + " Cancel"; }
+                else if (state === "linked") { el.textContent = "Card linked. Tap it on the reader to log in next time."; b.innerHTML = UI.icon("check") + " Card linked"; b.disabled = true; }
+                else { el.textContent = "Optional: link an NFC card to log in with a tap next time."; b.innerHTML = UI.icon("plus") + " Link NFC card"; }
+            };
+            $("btn-link-nfc").onclick = () => nfcLink ? cancelNfcLink() : startNfcLink(newUser, linkStatus);
+            $("btn-start").onclick = () => { cancelNfcLink(); verified(newUser); };
         } catch (err) { UI.toast(err.message, "warn"); }
     };
 
@@ -607,6 +688,8 @@
     function handleCode(raw) {
         const text = String(raw || "").trim();
         if (!text) return;
+        const nfc = /^nfc-([0-9a-f]{8,20})$/i.exec(text);
+        if (nfc) return handleNfc(nfc[1].toLowerCase());
         if (text.startsWith("RAISE1.")) {
             if (stage === "pass" || stage === "scan") onPassText(text);
             return;
@@ -645,8 +728,14 @@
     $("manual-input").addEventListener("input", () => scheduleAuto(() => $("manual-input").value, submitManual));
 
     document.addEventListener("keydown", e => {
-        if (stage !== "pass" && stage !== "scan") return;
         if (e.ctrlKey || e.metaKey || e.altKey) return;
+        if (nfcLink) {  // waiting for a card to link: the reader's keystrokes go here, on any screen
+            if (e.key.length === 1) { e.preventDefault(); linkBuf += e.key; }
+            else if (e.key === "Enter" && linkBuf) { e.preventDefault(); const v = linkBuf; linkBuf = ""; handleCode(v); }
+            else if (e.key === "Escape") { e.preventDefault(); cancelNfcLink(); }
+            return;
+        }
+        if (stage !== "pass" && stage !== "scan") return;
         const input = $("manual-input");
         if (document.activeElement === input || isTyping(document.activeElement)) return;
 
@@ -714,6 +803,7 @@
     function reset() {
         clearInterval(countdown); countdown = null;
         cart = []; user = null; lastIssued = null;
+        cancelNfcLink();
         $("holder").hidden = true;
         $("last").className = "last"; $("last").innerHTML = `<span class="thumb">${UI.icon("barcode")}</span><span>Last scanned item appears here.</span>`;
         $("reg-form").reset();
