@@ -510,6 +510,7 @@
             const p = await RAISEPass.open(text);
             UI.beep(1568, 70, 2);   // login: double beep
             verified({ id: p.id, name: p.n, token: text });
+            if (RAISECloud.enabled) UI.toast("Old pass: this visit won't earn points. Get a new pass in the RAISE app.", "warn");
         } catch (e) {
             UI.beep(330, 160);
             UI.toast(e.message, "warn");
@@ -586,6 +587,7 @@
             nfcLink = null; clearTimeout(nfcLinkTimer);
             try {
                 const r = await RAISECloud.call("link_card", { pass: link.token, card: key });
+                if (cards[key]) { delete cards[key]; UI.store(NFC_KEY, cards); }   // stale offline link
                 UI.beep();
                 UI.toast(r.moved ? `Card moved to ${link.name}` : `Card linked to ${link.name}`);
                 if (user && user.customerId === link.customerId) user.hasCard = true;
@@ -611,15 +613,21 @@
         }
         if (stage !== "pass" && stage !== "scan") return;
         const entry = cards[key];
-        if (RAISECloud.enabled && !entry) {
+        // Connected: the store database decides. A link saved only on this kiosk (from before it
+        // was connected) is used just when the server can't be reached, so card logins always
+        // attach orders and points to the right customer.
+        if (RAISECloud.enabled) {
             try {
                 const { customer } = await RAISECloud.call("identify", { card: key });
                 UI.beep(1568, 70, 2);   // login: double beep
                 return verified(cloudUser(customer, null));
             } catch (e) {
-                UI.beep(330, 160);
-                UI.toast(e.message, "warn");
-                return;
+                if (!(e.status === 0 && entry)) {
+                    UI.beep(330, 160);
+                    UI.toast(e.message, "warn");
+                    return;
+                }
+                UI.toast("Store server unreachable: using this kiosk's saved card link.", "warn");
             }
         }
         if (!entry) {
