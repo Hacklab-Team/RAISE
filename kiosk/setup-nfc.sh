@@ -37,7 +37,7 @@ sudo mkdir -p "$DEST"
 if [ -f "$HERE/nfc-bridge.py" ]; then
     sudo cp "$HERE/nfc-bridge.py" "$DEST/nfc-bridge.py"
 else
-    sudo curl -fsSL "$SITE/kiosk/nfc-bridge.py" -o "$DEST/nfc-bridge.py"
+    sudo curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 "$SITE/kiosk/nfc-bridge.py" -o "$DEST/nfc-bridge.py"
 fi
 [ -d "$DEST/venv" ] || sudo python3 -m venv --system-site-packages "$DEST/venv"
 # mfrc522 pulls in RPi.GPIO, which doesn't work on a Pi 5; rpi-lgpio (from apt) provides the

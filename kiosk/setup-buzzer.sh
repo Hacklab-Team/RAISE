@@ -34,7 +34,7 @@ sudo mkdir -p "$DEST"
 if [ -f "$HERE/buzzer-bridge.py" ]; then
     sudo cp "$HERE/buzzer-bridge.py" "$DEST/buzzer-bridge.py"
 else
-    sudo curl -fsSL "$SITE/kiosk/buzzer-bridge.py" -o "$DEST/buzzer-bridge.py"
+    sudo curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 "$SITE/kiosk/buzzer-bridge.py" -o "$DEST/buzzer-bridge.py"
 fi
 
 echo "==> Service raise-buzzer ($TYPE buzzer on GPIO$PIN, volume $VOLUME)"
