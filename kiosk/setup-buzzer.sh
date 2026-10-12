@@ -5,6 +5,7 @@
 #     bash setup-buzzer.sh passive            # passive buzzer (plays the kiosk's pitches)
 #     BUZZER_PIN=23 bash setup-buzzer.sh      # another GPIO (BCM number)
 #     ACTIVE_LOW=1 bash setup-buzzer.sh       # module sounds when the signal is LOW
+#     VOLUME=0.3 bash setup-buzzer.sh         # quieter: 0.1 (soft) to 1 (full, default)
 #
 # Installs buzzer-bridge.py as a service (raise-buzzer) on http://127.0.0.1:8799, allows the
 # kiosk site to call it, and switches the kiosk's beeps over to the buzzer.
@@ -20,8 +21,9 @@ LAUNCHER="$HOME/.local/bin/raise-kiosk"
 
 case "$TYPE" in active|passive) ;; *) echo "Type must be active or passive" >&2; exit 1 ;; esac
 if [ "$(id -u)" -eq 0 ]; then echo "Run as your normal user (not sudo); it asks for sudo when needed." >&2; exit 1; fi
-EXTRA=""
-[ "${ACTIVE_LOW:-0}" = "1" ] && EXTRA="--active-low"
+VOLUME="${VOLUME:-1}"
+EXTRA="--volume $VOLUME"
+[ "${ACTIVE_LOW:-0}" = "1" ] && EXTRA="$EXTRA --active-low"
 
 echo "==> Packages"
 sudo apt-get install -y python3-gpiozero python3-lgpio >/dev/null
@@ -35,7 +37,7 @@ else
     sudo curl -fsSL "$SITE/kiosk/buzzer-bridge.py" -o "$DEST/buzzer-bridge.py"
 fi
 
-echo "==> Service raise-buzzer ($TYPE buzzer on GPIO$PIN)"
+echo "==> Service raise-buzzer ($TYPE buzzer on GPIO$PIN, volume $VOLUME)"
 sudo tee /etc/systemd/system/raise-buzzer.service >/dev/null <<EOF
 [Unit]
 Description=RAISE GPIO buzzer for the kiosk
@@ -91,5 +93,6 @@ Done. Restart the kiosk to use the buzzer:   pkill chromium; $LAUNCHER &
 
   Heard nothing, or only clicks?   bash setup-buzzer.sh passive
   Buzzing constantly?              ACTIVE_LOW=1 bash setup-buzzer.sh $TYPE
+  Too loud?                        VOLUME=0.3 bash setup-buzzer.sh $TYPE
   Service log:                     journalctl -u raise-buzzer -f
 EOF

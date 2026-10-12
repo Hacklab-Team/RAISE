@@ -12,6 +12,8 @@ Buzzer modules (3 pins: VCC, GND, signal):
     active   beeps by itself when switched on (one fixed pitch)     --type active  (default)
     passive  needs a tone; plays the page's pitches                  --type passive
 Some modules sound when the signal is LOW instead of HIGH: add --active-low.
+Quieter: --volume 0.1 … 1 (passive: narrower pulses; active: power is pulsed at 8 kHz, which
+softens it but can sound a little rougher. A 100–330 Ω resistor on VCC is the hardware way).
 
     python3 buzzer-bridge.py --test             # play scan, login, error and paid, then exit
     python3 buzzer-bridge.py --dry-run          # no GPIO: print what would play
@@ -34,19 +36,24 @@ def log(msg):
 
 
 class Buzzer:
-    def __init__(self, pin, kind, active_low, dry_run):
+    def __init__(self, pin, kind, active_low, dry_run, volume=1.0):
         self.kind, self.dry_run = kind, dry_run
+        self.volume = max(0.1, min(1.0, volume))
         self.jobs = queue.Queue(maxsize=4)   # beeps arriving faster than they play are dropped
         if dry_run:
             self.dev = None
         elif kind == "passive":
             from gpiozero import PWMOutputDevice
             self.dev = PWMOutputDevice(pin, active_high=not active_low, initial_value=0, frequency=1000)
+        elif self.volume < 1.0:
+            # Active buzzer, softened: pulse its power fast; the duty cycle sets the loudness.
+            from gpiozero import PWMOutputDevice
+            self.dev = PWMOutputDevice(pin, active_high=not active_low, initial_value=0, frequency=8000)
         else:
             from gpiozero import DigitalOutputDevice
             self.dev = DigitalOutputDevice(pin, active_high=not active_low, initial_value=False)
         threading.Thread(target=self._worker, daemon=True).start()
-        log(f"{kind} buzzer on GPIO{pin}{' (active low)' if active_low else ''}{' [dry run]' if dry_run else ''}")
+        log(f"{kind} buzzer on GPIO{pin}, volume {self.volume:g}{' (active low)' if active_low else ''}{' [dry run]' if dry_run else ''}")
 
     def beep(self, freq, ms, n):
         try:
@@ -64,12 +71,16 @@ class Buzzer:
 
     def _tone(self, freq, ms):
         if self.dry_run:
-            log(f"beep {freq} Hz for {ms} ms")
+            log(f"beep {freq} Hz for {ms} ms at volume {self.volume:g}")
             time.sleep(ms / 1000)
             return
         if self.kind == "passive":
             self.dev.frequency = freq
-            self.dev.value = 0.5          # 50% duty cycle = loudest square wave
+            self.dev.value = 0.5 * self.volume   # 50% duty = loudest; narrower pulses are quieter
+            time.sleep(ms / 1000)
+            self.dev.value = 0
+        elif self.volume < 1.0:
+            self.dev.value = self.volume
             time.sleep(ms / 1000)
             self.dev.value = 0
         else:
@@ -122,12 +133,13 @@ def main():
     ap.add_argument("--pin", type=int, default=18, help="BCM GPIO number of the signal pin (default 18 = physical pin 12)")
     ap.add_argument("--type", choices=["active", "passive"], default="active")
     ap.add_argument("--active-low", action="store_true", help="module sounds when the signal is LOW")
+    ap.add_argument("--volume", type=float, default=1.0, help="0.1 (quiet) to 1 (full)")
     ap.add_argument("--port", type=int, default=8799)
     ap.add_argument("--test", action="store_true", help="play scan, login, error and paid, then exit")
     ap.add_argument("--dry-run", action="store_true", help="no GPIO; print the beeps")
     args = ap.parse_args()
 
-    buzzer = Buzzer(args.pin, args.type, args.active_low, args.dry_run)
+    buzzer = Buzzer(args.pin, args.type, args.active_low, args.dry_run, args.volume)
     if args.test:
         for name, (f, ms, n) in PATTERNS.items():
             log(f"test: {name}")
