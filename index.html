@@ -166,6 +166,24 @@
             .cam { max-height: none; }
         }
 
+        /* Link a card */
+        .link-steps { display: flex; flex-direction: column; gap: var(--s4); }
+        .link-track { display: grid; grid-template-columns: repeat(3, 1fr); margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; }
+        .link-track li { display: flex; align-items: center; gap: var(--s2); padding: var(--s3) var(--s4); font-size: var(--t-sm); font-weight: 600; color: var(--mute); background: var(--surface); }
+        .link-track li + li { border-left: 1px solid var(--line); }
+        .link-track li::before { content: attr(data-n); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line-strong); font-family: var(--mono); font-size: 11px; }
+        .link-track li.on { color: var(--ink); background: var(--accent-wash); }
+        .link-track li.on::before { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+        .link-track li.done { color: var(--ink-2); }
+        .link-track li.done::before { content: "✓"; border-color: var(--accent); color: var(--accent-strong); }
+        .link-card-panel { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s3); padding: var(--s5); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+        .link-card-panel h3 { font-size: var(--t-xl); font-weight: 700; letter-spacing: -0.02em; }
+        .link-card-panel p { color: var(--mute); max-width: 52ch; }
+        .link-card-panel .link-actions { display: flex; gap: var(--s2); flex-wrap: wrap; margin-top: var(--s2); }
+        .link-card-panel .tap { display: flex; align-items: center; gap: var(--s3); color: var(--accent-strong); font-weight: 600; }
+        .link-card-panel .tap .icon { width: 28px; height: 28px; animation: tap-pulse 1.6s ease-in-out infinite; }
+        @keyframes tap-pulse { 50% { opacity: .35; } }
+
         /* Attract screen */
         .attract { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; justify-content: space-between; padding: 40px 56px; background: var(--band); color: var(--band-ink); overflow: hidden; cursor: pointer; }
         .attract-seal { position: absolute; right: -14vh; top: 50%; width: 92vh; height: 92vh; transform: translateY(-50%); opacity: .13; pointer-events: none; }
@@ -227,6 +245,7 @@
                 <div id="seg-pass" class="seg" role="tablist" aria-label="How to identify">
                     <button role="tab" id="seg-scan" aria-selected="true">Scan my pass</button>
                     <button role="tab" id="seg-reg" aria-selected="false">Register new</button>
+                    <button role="tab" id="seg-link" aria-selected="false">Link a card</button>
                 </div>
 
 
@@ -253,6 +272,14 @@
                     <button class="btn btn--ghost" id="btn-guest">Continue as guest <svg data-icon="arrow-right"></svg></button>
                 </div>
 
+                <!-- Link a card: existing pass holders add a (new) NFC card without shopping -->
+                <div id="link-steps" class="link-steps" hidden>
+                    <ol class="link-track" id="link-track">
+                        <li data-n="1">Scan your pass</li><li data-n="2">Tap your card</li><li data-n="3">Done</li>
+                    </ol>
+                    <div id="link-body"></div>
+                </div>
+
                 <div id="below-scan" hidden style="display:flex;flex-direction:column;gap:12px">
                     <div class="last" id="last"><span class="thumb"><svg data-icon="barcode"></svg></span><span>Last scanned item appears here.</span></div>
                     <div class="divider">or type the number under the barcode</div>
@@ -274,6 +301,7 @@
                 <div class="seg" role="tablist">
                     <button role="tab" id="seg2-scan" aria-selected="false">Scan my pass</button>
                     <button role="tab" id="seg2-reg" aria-selected="true">Register new</button>
+                    <button role="tab" id="seg2-link" aria-selected="false">Link a card</button>
                 </div>
                 <div class="reg-grid">
                     <form id="reg-form" style="display:flex;flex-direction:column;gap:12px">
@@ -392,6 +420,7 @@
         onDetect: (text, format) => {
             lastSeen = performance.now();
             const isPass = format === "QRCode";
+            if (stage === "link" && isPass) return onLinkPass(text);
             if (stage === "pass" && isPass) return onPassText(text);
             if (stage === "pass" && !isPass) { startGuest(); return addByBarcode(text); }  // no pass needed to start
             if (stage === "scan" && !isPass) return addByBarcode(text);
@@ -463,27 +492,35 @@
 
     function setStage(next) {
         stage = next;
-        const camMode = next === "pass" ? "pass" : "product";
+        const camMode = next === "pass" || next === "link" ? "pass" : "product";
         $("cam").dataset.mode = camMode;
         scanner.setMode(camMode);
 
-        const live = (next === "pass" && !attractShown()) || next === "scan";
+        const live = (next === "pass" && !attractShown()) || next === "scan" || (next === "link" && linkStep === "scan");
         live ? scanner.resume() : scanner.pause();
         $("cam").classList.toggle("is-paused", !live);
 
-        $("seg-pass").hidden = next !== "pass";
+        $("seg-pass").hidden = next !== "pass" && next !== "link";
+        $("seg-scan").setAttribute("aria-selected", String(next === "pass"));
+        $("seg-reg").setAttribute("aria-selected", "false");
+        $("seg-link").setAttribute("aria-selected", String(next === "link"));
         $("below-pass").hidden = next !== "pass";
+        $("link-steps").hidden = next !== "link";
+        const camVisible = next !== "link" || linkStep === "scan";
+        $("cam").hidden = !camVisible;
+        $("cam-head").hidden = !camVisible;
         $("below-scan").hidden = next !== "scan";
         $("below-scan").style.display = next === "scan" ? "flex" : "none";
 
         if (next === "pass") { show("body-camera"); $("stage-title").textContent = "Identify"; $("instruction").textContent = "Hold your RAISE Pass up to the camera"; }
         if (next === "register") { show("body-register"); $("stage-title").textContent = "Register"; }
+        if (next === "link") { show("body-camera"); $("stage-title").textContent = "Link a card"; $("instruction").textContent = "Hold your RAISE Pass up to the camera"; drawLink(); }
         if (next === "verified") { show("body-verified"); $("stage-title").textContent = "Verified"; }
         if (next === "scan") { show("body-camera"); $("stage-title").textContent = "Scan items"; $("instruction").textContent = "Hold a barcode up to the camera"; tipShown = false; lastSeen = performance.now(); scanner.resetCooldown(); }
         if (next === "pay") { show("body-pay"); $("stage-title").textContent = "Pay"; }
         if (next === "paid") { show("body-paid"); $("stage-title").textContent = "Complete"; }
 
-        const stepOf = { pass: 1, register: 1, verified: 1, scan: 2, pay: 3, paid: 3 }[next];
+        const stepOf = { pass: 1, register: 1, link: 1, verified: 1, scan: 2, pay: 3, paid: 3 }[next];
         [1, 2, 3].forEach(n => {
             const li = $("step-" + n);
             li.classList.toggle("done", n < stepOf || next === "paid");
@@ -493,7 +530,7 @@
         render();
         if (next === "scan") $("manual-input").focus({ preventScroll: true });
         if (typeof armAttract === "function") {
-            if (next === "pass") armAttract();
+            if (next === "pass" || next === "link") armAttract();
             else { clearTimeout(attractTimer); $("attract").hidden = true; }
         }
     }
@@ -611,7 +648,13 @@
             link.onUpdate && link.onUpdate("linked");
             return;
         }
-        if (stage !== "pass" && stage !== "scan") return;
+        if (stage === "link" && linkStep !== "done") {   // card tapped before the pass was scanned
+            UI.beep(330, 160);
+            UI.toast("Scan your pass QR first, then tap the card.", "warn");
+            return;
+        }
+        // On "Card linked", tapping the new card simply logs in with it.
+        if (stage !== "pass" && stage !== "scan" && stage !== "link") return;
         const entry = cards[key];
         // Connected: the store database decides. A link saved only on this kiosk (from before it
         // was connected) is used just when the server can't be reached, so card logins always
@@ -638,6 +681,72 @@
         onPassText(entry.token);  // the stored pass is verified again, exactly like a scanned QR
     }
 
+    // ---------- Link a card (existing pass holders) ----------
+    let linkUser = null, linkStep = "scan", linkDoneTimer = null;   // scan | tap | done
+
+    async function onLinkPass(text) {
+        try {
+            if (text.startsWith("RAISE2.")) {
+                if (!RAISECloud.enabled) throw new Error("This kiosk isn't connected to the store server yet.");
+                const { customer } = await RAISECloud.call("identify", { pass: text });
+                linkUser = cloudUser(customer, text);
+            } else if (RAISECloud.enabled) {
+                throw new Error("That's an old pass. Get a new pass in the RAISE app (or register here), then link your card.");
+            } else {
+                const p = await RAISEPass.open(text);
+                linkUser = { id: p.id, name: p.n, token: text };
+            }
+            UI.beep(1568, 70, 2);
+            linkStep = "tap";
+            setStage("link");
+            startNfcLink(linkUser, state => {
+                if (state === "linked") { linkStep = "done"; setStage("link"); }
+                else if (state === "cancelled" && stage === "link" && linkStep === "tap") { linkStep = "scan"; linkUser = null; setStage("link"); }
+            });
+        } catch (e) {
+            UI.beep(330, 160);
+            UI.toast(e.message, "warn");
+        }
+    }
+
+    function drawLink() {
+        clearTimeout(linkDoneTimer);
+        const order = ["scan", "tap", "done"];
+        $("link-track").querySelectorAll("li").forEach((li, i) => {
+            const at = order.indexOf(linkStep);
+            li.classList.toggle("on", i === at && linkStep !== "done");
+            li.classList.toggle("done", i < at || linkStep === "done");
+        });
+        const first = linkUser ? UI.esc(linkUser.name.split(" ")[0]) : "";
+        const body = $("link-body");
+        if (linkStep === "scan") {
+            body.innerHTML = `<p class="hint" style="margin:0">Already have a RAISE Pass and a new NFC card? Show your pass QR (phone screen or printout) to the camera, or scan it with the barcode scanner. Your card gets linked to that pass.</p>`;
+        } else if (linkStep === "tap") {
+            body.innerHTML = `
+              <div class="link-card-panel">
+                <h3>Hi ${first}, tap your card</h3>
+                <p>Hold your NFC card on the reader.${linkUser && linkUser.hasCard ? " This replaces the card you linked before." : ""}</p>
+                <span class="tap">${UI.icon("nfc")} Waiting for a card…</span>
+                <div class="link-actions"><button class="btn" id="link-cancel" type="button">${UI.icon("x")} Cancel</button></div>
+              </div>`;
+            $("link-cancel").onclick = () => { cancelNfcLink(); };
+        } else {
+            body.innerHTML = `
+              <div class="link-card-panel">
+                <h3>Card linked</h3>
+                <p>Next time just tap your card on the reader to log in as ${UI.esc(linkUser ? linkUser.name : "")}${linkUser && linkUser.cloud ? ", at any RAISE kiosk" : ""}.</p>
+                <div class="link-actions">
+                  <button class="btn btn--primary btn--lg" id="link-shop" type="button">Start shopping ${UI.icon("arrow-right")}</button>
+                  <button class="btn btn--lg" id="link-done" type="button">Done</button>
+                </div>
+              </div>`;
+            const finish = () => { linkUser = null; linkStep = "scan"; setStage("pass"); showAttract(); };
+            $("link-shop").onclick = () => { const u = linkUser; linkUser = null; linkStep = "scan"; if (u && u.cloud) u.hasCard = true; verified(u); };
+            $("link-done").onclick = finish;
+            linkDoneTimer = setTimeout(() => { if (stage === "link" && linkStep === "done") finish(); }, 20000);
+        }
+    }
+
     function startGuest() {
         user = { id: null, name: "Guest" };
         renderHolder();
@@ -647,6 +756,8 @@
     const toPassTab = () => setStage("pass"), toRegTab = () => setStage("register");
     $("seg-scan").onclick = toPassTab; $("seg-reg").onclick = toRegTab;
     $("seg2-scan").onclick = toPassTab; $("seg2-reg").onclick = toRegTab;
+    const toLinkTab = () => { cancelNfcLink(); linkUser = null; linkStep = "scan"; setStage("link"); };
+    $("seg-link").onclick = toLinkTab; $("seg2-link").onclick = toLinkTab;
 
     let lastIssued = null;
     $("reg-form").onsubmit = async e => {
@@ -783,6 +894,7 @@
         if (!text) return;
         const nfc = /^nfc-([0-9a-f]{8,20})$/i.exec(text);
         if (nfc) return handleNfc(nfc[1].toLowerCase());
+        if (/^RAISE[12]\./.test(text) && stage === "link") return onLinkPass(text);
         if (/^RAISE[12]\./.test(text)) {
             if (stage === "pass" || stage === "scan") onPassText(text);
             return;
@@ -822,13 +934,13 @@
 
     document.addEventListener("keydown", e => {
         if (e.ctrlKey || e.metaKey || e.altKey) return;
-        if (nfcLink) {  // waiting for a card to link: the reader's keystrokes go here, on any screen
+        if (nfcLink || (stage === "link" && linkStep === "tap")) {  // waiting for a card to link: the reader's keystrokes go here, on any screen
             if (e.key.length === 1) { e.preventDefault(); linkBuf += e.key; }
             else if (e.key === "Enter" && linkBuf) { e.preventDefault(); const v = linkBuf; linkBuf = ""; handleCode(v); }
             else if (e.key === "Escape") { e.preventDefault(); cancelNfcLink(); }
             return;
         }
-        if (stage !== "pass" && stage !== "scan") return;
+        if (stage !== "pass" && stage !== "scan" && stage !== "link") return;
         const input = $("manual-input");
         if (document.activeElement === input || isTyping(document.activeElement)) return;
 
@@ -927,6 +1039,7 @@
         clearInterval(countdown); countdown = null;
         cart = []; user = null; lastIssued = null;
         cancelNfcLink();
+        linkUser = null; linkStep = "scan";
         $("holder").hidden = true;
         $("last").className = "last"; $("last").innerHTML = `<span class="thumb">${UI.icon("barcode")}</span><span>Last scanned item appears here.</span>`;
         $("reg-form").reset();
@@ -961,7 +1074,8 @@
 
     // Over the Identify screen only; the camera pauses while it's shown.
     function showAttract() {
-        if (stage !== "pass" || nfcLink) return;
+        if ((stage !== "pass" && stage !== "link") || nfcLink) return;
+        linkUser = null; linkStep = "scan";
         $("attract").hidden = false;
         setStage("pass");
     }
@@ -973,7 +1087,7 @@
     }
     function armAttract() {
         clearTimeout(attractTimer);
-        if (stage === "pass" && !attractShown()) attractTimer = setTimeout(showAttract, ATTRACT_IDLE_MS);
+        if ((stage === "pass" || stage === "link") && !attractShown()) attractTimer = setTimeout(showAttract, ATTRACT_IDLE_MS);
     }
     // Touch: the click is used up here, so it can't press a button underneath.
     $("attract").addEventListener("click", e => { e.stopPropagation(); leaveAttract(); });
