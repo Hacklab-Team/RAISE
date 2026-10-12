@@ -61,9 +61,6 @@
         .guide i:nth-child(2) { right: 0; top: 0; border-left: 0; border-bottom: 0; border-top-right-radius: 6px; }
         .guide i:nth-child(3) { left: 0; bottom: 0; border-right: 0; border-top: 0; border-bottom-left-radius: 6px; }
         .guide i:nth-child(4) { right: 0; bottom: 0; border-left: 0; border-top: 0; border-bottom-right-radius: 6px; }
-        .pass-start { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s3); padding: var(--s6) var(--s2); }
-        .pass-start h3 { font-size: var(--t-xl); font-weight: 650; letter-spacing: -0.02em; }
-        .pass-start p { color: var(--mute); max-width: 44ch; }
         .cam-status { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s3); padding: var(--s6); text-align: center; background: rgba(11, 16, 14, .9); color: #e8eee7; }
         .cam-status .icon { width: 30px; height: 30px; color: #9fb2a8; }
         .cam-status p { max-width: 36ch; font-size: var(--t-md); }
@@ -169,6 +166,34 @@
             .cam { max-height: none; }
         }
 
+        /* Attract screen */
+        .attract { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; justify-content: space-between; padding: 40px 56px; background: var(--band); color: var(--band-ink); overflow: hidden; cursor: pointer; }
+        .attract-seal { position: absolute; right: -14vh; top: 50%; width: 92vh; height: 92vh; transform: translateY(-50%); opacity: .13; pointer-events: none; }
+        .attract-seal .seal { width: 100%; height: 100%; animation: attract-spin 120s linear infinite; }
+        .attract-seal .seal-line, .attract-seal .seal-ring { stroke: #3fbf9b; }
+        .attract-seal .seal-core, .attract-seal .seal-check { display: none; }
+        @keyframes attract-spin { to { transform: rotate(360deg); } }
+        .attract-brand { position: relative; display: flex; align-items: baseline; gap: var(--s3); }
+        .attract-brand b { font-size: 26px; font-weight: 700; letter-spacing: .14em; }
+        .attract-brand span { color: var(--band-mute); font-size: var(--t-md); }
+        .attract-main { position: relative; max-width: 960px; }
+        .attract-main h1 { font-size: clamp(56px, 9vw, 112px); font-weight: 700; line-height: .95; letter-spacing: -0.04em; }
+        .attract-main p { margin-top: var(--s4); font-size: clamp(18px, 2.2vw, 26px); color: var(--band-mute); max-width: 44ch; text-wrap: balance; }
+        .attract-ways { list-style: none; margin: 48px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--band-line); }
+        .attract-ways li { display: grid; grid-template-columns: auto 1fr; column-gap: var(--s3); align-items: center; padding: var(--s5) var(--s5) var(--s5) 0; }
+        .attract-ways li + li { padding-left: var(--s5); border-left: 1px solid var(--band-line); }
+        .attract-ways .ico { grid-row: span 2; display: grid; place-items: center; width: 52px; height: 52px; color: #3fbf9b; }
+        .attract-ways .ico .icon { width: 36px; height: 36px; }
+        .attract-ways b { font-size: clamp(16px, 1.7vw, 21px); font-weight: 650; }
+        .attract-ways span:not(.ico) { color: var(--band-mute); font-size: var(--t-sm); }
+        .attract-cta { position: relative; font-size: var(--t-lg); font-weight: 600; color: #3fbf9b; animation: attract-pulse 2.4s ease-in-out infinite; }
+        @keyframes attract-pulse { 50% { opacity: .45; } }
+        @media (max-width: 900px) {
+            .attract { padding: 28px 24px; }
+            .attract-ways { grid-template-columns: 1fr; }
+            .attract-ways li + li { padding-left: 0; border-left: 0; border-top: 1px solid var(--band-line); }
+        }
+
         @media print {
             body * { visibility: hidden; }
             #print-pass, #print-pass * { visibility: visible; }
@@ -204,11 +229,6 @@
                     <button role="tab" id="seg-reg" aria-selected="false">Register new</button>
                 </div>
 
-                <div class="pass-start" id="pass-start" hidden>
-                    <h3>Have a RAISE Pass?</h3>
-                    <p>Tap the button, then hold your pass QR (phone screen or printed card) up to the camera.</p>
-                    <button class="btn btn--primary btn--lg" id="btn-scan-pass"><svg data-icon="qr"></svg> Scan my pass</button>
-                </div>
 
                 <div class="cam-row" id="cam-head">
                     <p class="cam-instruction grow" id="instruction">Hold your RAISE Pass up to the camera</p>
@@ -230,7 +250,6 @@
                 </div>
 
                 <div id="below-pass" class="cam-row" style="justify-content:space-between">
-                    <button class="btn" id="btn-cancel-pass" hidden><svg data-icon="x"></svg> Stop camera</button>
                     <button class="btn btn--ghost" id="btn-guest">Continue as guest <svg data-icon="arrow-right"></svg></button>
                 </div>
 
@@ -326,6 +345,23 @@
     </main>
 </div>
 
+<!-- Attract screen: shown when the kiosk is idle. Touch reveals the Identify screen; a card tap,
+     pass QR or item scan works straight through it (keystrokes are not blocked). -->
+<div class="attract" id="attract" hidden>
+    <div class="attract-seal" id="attract-seal" aria-hidden="true"></div>
+    <div class="attract-brand"><b>RAISE</b><span>Self-checkout</span></div>
+    <div class="attract-main">
+        <h1>Skip the queue.</h1>
+        <p>Scan your own items, pay by UPI and walk out.</p>
+        <ol class="attract-ways">
+            <li><span class="ico" data-ico="nfc"></span><b>Tap your RAISE card</b><span>on the reader, anytime</span></li>
+            <li><span class="ico" data-ico="qr"></span><b>Show your pass QR</b><span>touch the screen first</span></li>
+            <li><span class="ico" data-ico="barcode"></span><b>Or just scan an item</b><span>to shop as a guest</span></li>
+        </ol>
+    </div>
+    <p class="attract-cta">Touch the screen to scan your pass</p>
+</div>
+
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="vendor/qrcode.min.js"></script>
@@ -419,21 +455,16 @@
     const PANES = ["body-camera", "body-register", "body-verified", "body-pay", "body-paid"];
     function show(pane) { PANES.forEach(p => { $(p).hidden = p !== pane; }); }
 
-    let passCam = false;  // the pass scanner runs only after "Scan my pass" is tapped
+    // The Identify screen's QR camera runs whenever the attract screen isn't covering it.
+    const attractShown = () => !$("attract").hidden;
 
     function setStage(next) {
         stage = next;
-        if (next !== "pass") passCam = false;
         const camMode = next === "pass" ? "pass" : "product";
         $("cam").dataset.mode = camMode;
         scanner.setMode(camMode);
 
-        const live = (next === "pass" && passCam) || next === "scan";
-        const camShown = next !== "pass" || passCam;
-        $("pass-start").hidden = !(next === "pass" && !passCam);
-        $("cam-head").hidden = !camShown;
-        $("cam").hidden = !camShown;
-        $("btn-cancel-pass").hidden = !(next === "pass" && passCam);
+        const live = (next === "pass" && !attractShown()) || next === "scan";
         live ? scanner.resume() : scanner.pause();
         $("cam").classList.toggle("is-paused", !live);
 
@@ -458,6 +489,10 @@
         $("stage-meta").innerHTML = "";
         render();
         if (next === "scan") $("manual-input").focus({ preventScroll: true });
+        if (typeof armAttract === "function") {
+            if (next === "pass") armAttract();
+            else { clearTimeout(attractTimer); $("attract").hidden = true; }
+        }
     }
 
     // ---------- Pass ----------
@@ -557,8 +592,6 @@
         setStage("scan");
     }
     $("btn-guest").onclick = startGuest;
-    $("btn-scan-pass").onclick = () => { passCam = true; setStage("pass"); };
-    $("btn-cancel-pass").onclick = () => { passCam = false; setStage("pass"); };
     const toPassTab = () => setStage("pass"), toRegTab = () => setStage("register");
     $("seg-scan").onclick = toPassTab; $("seg-reg").onclick = toRegTab;
     $("seg2-scan").onclick = toPassTab; $("seg2-reg").onclick = toRegTab;
@@ -809,6 +842,7 @@
         $("reg-form").reset();
         $("reg-out").innerHTML = `<div class="empty" style="padding:var(--s4)"><div class="ico">${UI.icon("qr")}</div><h3>Your pass appears here</h3><p>It's signed and encrypted, so it can be printed or saved.</p></div>`;
         setStage("pass");
+        showAttract();
     }
 
     $("quick").innerHTML = RAISECatalog.CATALOG.map(p =>
@@ -826,7 +860,37 @@
         $("btn-af").onclick = () => scanner.setFocus(null);
     }
 
+    // ---------- Attract screen ----------
+    const ATTRACT_IDLE_MS = 45000;
+    let attractTimer = null;
+    $("attract-seal").innerHTML = UI.sealSVG(400);
+    document.querySelectorAll("#attract [data-ico]").forEach(el => { el.innerHTML = UI.icon(el.dataset.ico); });
+
+    // Over the Identify screen only; the camera pauses while it's shown.
+    function showAttract() {
+        if (stage !== "pass" || nfcLink) return;
+        $("attract").hidden = false;
+        setStage("pass");
+    }
+    // Touch or any key: reveal the Identify screen with the QR camera running.
+    function leaveAttract() {
+        if (!attractShown()) return;
+        $("attract").hidden = true;
+        setStage("pass");
+    }
+    function armAttract() {
+        clearTimeout(attractTimer);
+        if (stage === "pass" && !attractShown()) attractTimer = setTimeout(showAttract, ATTRACT_IDLE_MS);
+    }
+    // Touch: the click is used up here, so it can't press a button underneath.
+    $("attract").addEventListener("click", e => { e.stopPropagation(); leaveAttract(); });
+    // Card reader, barcode scanner or keyboard: dismiss, but the keys still reach the normal
+    // handlers, so an NFC tap or item scan works straight from the attract screen.
+    document.addEventListener("keydown", () => { leaveAttract(); armAttract(); }, true);
+    document.addEventListener("pointerdown", () => armAttract(), true);
+
     setStage("pass");
+    showAttract();
     startCamera().then(setupFocus);
 })();
 </script>
