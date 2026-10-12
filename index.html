@@ -976,11 +976,16 @@
 
     // ---------- Store server ----------
     let nfcSeen = false;
-    RAISECloud.loadCatalog().then(applied => {
-        if (!applied) return;
-        drawQuick();
-        if (scanner.worker) scanner.worker.setCatalog(RAISECatalog.CATALOG.map(p => p.barcode));  // blurry-barcode matcher
-    });
+    // Live catalog: at start, then every minute so price changes in the admin panel arrive.
+    function refreshCatalog() {
+        return RAISECloud.loadCatalog().then(applied => {
+            if (!applied) return;
+            drawQuick();
+            if (scanner.worker) scanner.worker.setCatalog(RAISECatalog.CATALOG.map(p => p.barcode));  // blurry-barcode matcher
+        });
+    }
+    refreshCatalog();
+    if (RAISECloud.configured) setInterval(refreshCatalog, 60000);
     RAISECloud.startHeartbeat(() => {
         const v = $("video");
         return {

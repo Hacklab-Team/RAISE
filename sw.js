@@ -7,7 +7,7 @@
 //   Product API calls:       never cached here (Open Food Facts lookups go straight to network).
 //
 // A hard reload (Ctrl+Shift+R) bypasses this worker entirely.
-const CACHE = "raise-v1";
+const CACHE = "raise-v2";
 const NETWORK_TIMEOUT_MS = 1500;
 
 const CORE = [
@@ -18,6 +18,8 @@ const CORE = [
     "shared.js",
     "pass.js",
     "catalog.js",
+    "cloud-config.js",
+    "cloud.js",
     "scanner.js",
     "scan-worker.js",
     "barcode-match.js",
@@ -78,6 +80,9 @@ self.addEventListener("fetch", event => {
     const { request } = event;
     if (request.method !== "GET") return;
     const url = new URL(request.url);
+    // The admin panel (/admin/) and customer app (/app/) are separate apps on this site with
+    // their own caching; this kiosk worker must never answer for them.
+    if (url.origin === self.location.origin && /^\/(admin|app)(\/|$)/.test(url.pathname)) return;
     if (isStatic(url)) {
         event.respondWith(cacheFirst(request));
     } else if (url.origin === self.location.origin) {
