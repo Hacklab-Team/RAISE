@@ -319,6 +319,7 @@
                     <dt>Order</dt><dd class="num" id="paid-order"></dd>
                     <dt>Amount</dt><dd class="num" id="paid-amt"></dd>
                     <dt>Customer</dt><dd id="paid-name"></dd>
+                    <dt id="paid-points-l" hidden>Points earned</dt><dd class="num" id="paid-points" hidden></dd>
                 </dl>
                 <div class="cam-row" style="margin-top:var(--s3)">
                     <span class="tag"><svg data-icon="refresh"></svg>Next customer in <b class="num" id="count">10</b>s</span>
@@ -368,6 +369,8 @@
 <script src="shared.js"></script>
 <script src="pass.js"></script>
 <script src="catalog.js"></script>
+<script src="cloud-config.js"></script>
+<script src="cloud.js"></script>
 <script src="scanner.js"></script>
 <script>
 (() => {
@@ -498,13 +501,24 @@
     // ---------- Pass ----------
     async function onPassText(text) {
         try {
+            if (text.startsWith("RAISE2.")) {   // issued by the store server: verified there
+                if (!RAISECloud.enabled) throw new Error("This kiosk isn't connected to the store server yet.");
+                const { customer } = await RAISECloud.call("identify", { pass: text });
+                UI.beep(1568, 70, 2);   // login: double beep
+                return verified(cloudUser(customer, text));
+            }
             const p = await RAISEPass.open(text);
-            UI.beep();
+            UI.beep(1568, 70, 2);   // login: double beep
             verified({ id: p.id, name: p.n, token: text });
         } catch (e) {
             UI.beep(330, 160);
             UI.toast(e.message, "warn");
         }
+    }
+
+    // A customer known to the store server. `id` is the pass ID (shown in the header).
+    function cloudUser(c, token) {
+        return { id: c.pass_id, customerId: c.id, name: c.name, token: token || null, points: c.points, hasCard: !!c.has_card, cloud: true };
     }
 
     function verified(u) {
@@ -522,11 +536,13 @@
         if (!user) { h.hidden = true; return; }
         h.hidden = false;
         if (!user.id) { h.innerHTML = UI.icon("user") + "<span>Guest</span>"; return; }
-        const linked = Object.values(nfcCards()).some(c => c.id === user.id);
+        const linked = user.cloud ? user.hasCard : Object.values(nfcCards()).some(c => c.id === user.id);
+        const canLink = !user.cloud || !!user.token;   // linking needs the pass token
         const action = linked
             ? `<span class="nfc-state">NFC card linked</span>`
-            : `<button class="link-card" id="btn-link-card" type="button">${nfcLink ? "Tap card…" : "Link NFC card"}</button>`;
-        h.innerHTML = UI.icon("shield") + `<span>${UI.esc(user.name)}</span><span class="pid">${UI.esc(RAISEPass.formatPassId(user.id))}</span>${action}`;
+            : canLink ? `<button class="link-card" id="btn-link-card" type="button">${nfcLink ? "Tap card…" : "Link NFC card"}</button>` : "";
+        const pts = user.cloud ? ` · ${user.points} pts` : "";
+        h.innerHTML = UI.icon("shield") + `<span>${UI.esc(user.name)}</span><span class="pid">${UI.esc(RAISEPass.formatPassId(user.id))}${pts}</span>${action}`;
         const b = $("btn-link-card");
         if (b) b.onclick = () => nfcLink ? cancelNfcLink() : startNfcLink(user, renderHolder);
     }
@@ -545,7 +561,7 @@
     }
 
     function startNfcLink(u, onUpdate) {
-        nfcLink = { token: u.token, id: u.id, name: u.name, onUpdate };
+        nfcLink = { token: u.token, id: u.id, customerId: u.customerId, name: u.name, cloud: !!u.cloud, onUpdate };
         linkBuf = "";
         if (document.activeElement) document.activeElement.blur();
         clearTimeout(nfcLinkTimer);
@@ -562,8 +578,25 @@
     }
 
     async function handleNfc(uid) {
+        nfcSeen = true;
         const key = await uidKey(uid);
         const cards = nfcCards();
+        if (nfcLink && nfcLink.cloud) {   // link on the store server: works at every kiosk
+            const link = nfcLink;
+            nfcLink = null; clearTimeout(nfcLinkTimer);
+            try {
+                const r = await RAISECloud.call("link_card", { pass: link.token, card: key });
+                UI.beep();
+                UI.toast(r.moved ? `Card moved to ${link.name}` : `Card linked to ${link.name}`);
+                if (user && user.customerId === link.customerId) user.hasCard = true;
+                link.onUpdate && link.onUpdate("linked");
+                renderHolder();
+            } catch (e) {
+                UI.beep(330, 160); UI.toast(e.message, "warn");
+                link.onUpdate && link.onUpdate("cancelled");
+            }
+            return;
+        }
         if (nfcLink) {
             const link = nfcLink;
             for (const k in cards) if (cards[k].id === link.id) delete cards[k];  // one card per pass
@@ -578,6 +611,17 @@
         }
         if (stage !== "pass" && stage !== "scan") return;
         const entry = cards[key];
+        if (RAISECloud.enabled && !entry) {
+            try {
+                const { customer } = await RAISECloud.call("identify", { card: key });
+                UI.beep(1568, 70, 2);   // login: double beep
+                return verified(cloudUser(customer, null));
+            } catch (e) {
+                UI.beep(330, 160);
+                UI.toast(e.message, "warn");
+                return;
+            }
+        }
         if (!entry) {
             UI.beep(330, 160);
             UI.toast("This card isn't linked yet. Register, or log in with your pass QR and tap Link NFC card.", "warn");
@@ -600,7 +644,15 @@
     $("reg-form").onsubmit = async e => {
         e.preventDefault();
         try {
-            const { token, payload } = await RAISEPass.seal({ name: $("reg-name").value.trim(), phone: $("reg-phone").value });
+            let token, payload, cloudCustomer = null;
+            if (RAISECloud.enabled) {
+                const r = await RAISECloud.call("register", { name: $("reg-name").value.trim(), phone: $("reg-phone").value });
+                cloudCustomer = r.customer;
+                token = r.token;
+                payload = { id: r.customer.pass_id, n: r.customer.name, m: $("reg-phone").value.slice(-4) };
+            } else {
+                ({ token, payload } = await RAISEPass.seal({ name: $("reg-name").value.trim(), phone: $("reg-phone").value }));
+            }
             lastIssued = { token, payload };
             $("reg-out").innerHTML = `
               <div class="passcard" id="print-pass">
@@ -624,7 +676,7 @@
                 const img = $("pass-qr").querySelector("img");
                 const a = document.createElement("a"); a.href = img.src; a.download = "raise-pass.png"; a.click();
             };
-            const newUser = { id: payload.id, name: payload.n, token };
+            const newUser = cloudCustomer ? cloudUser(cloudCustomer, token) : { id: payload.id, name: payload.n, token };
             const linkStatus = state => {
                 const el = $("nfc-link-status"), b = $("btn-link-nfc");
                 if (!el || !b) return;
@@ -723,7 +775,7 @@
         if (!text) return;
         const nfc = /^nfc-([0-9a-f]{8,20})$/i.exec(text);
         if (nfc) return handleNfc(nfc[1].toLowerCase());
-        if (text.startsWith("RAISE1.")) {
+        if (/^RAISE[12]\./.test(text)) {
             if (stage === "pass" || stage === "scan") onPassText(text);
             return;
         }
@@ -742,7 +794,7 @@
     // pass screen into a hidden buffer. Enter submits; a fast scanner burst that looks like a
     // complete code also submits on its own, for scanners set to send no Enter.
     const isTyping = el => el && (el.tagName === "TEXTAREA" || el.tagName === "SELECT" || (el.tagName === "INPUT" && !["button", "range", "checkbox", "radio"].includes(el.type)));
-    const looksComplete = v => /^\d{8}$|^\d{12,13}$/.test(v) || (v.startsWith("RAISE1.") && v.length > 40);
+    const looksComplete = v => /^\d{8}$|^\d{12,13}$/.test(v) || (/^RAISE[12]\./.test(v) && v.length >= 40);
     let passBuf = "", lastKeyAt = 0, fastRun = 0, autoTimer = null;
 
     function noteKey() {
@@ -800,21 +852,51 @@
     }, true);
 
     // ---------- Pay ----------
-    $("btn-pay").onclick = () => {
-        const amt = total(); if (!amt) return;
+    let currentOrder = null;   // order on the store server (null when offline)
+    $("btn-pay").onclick = async () => {
+        let amt = total(); if (!amt) return;
+        currentOrder = null;
+        if (RAISECloud.enabled) {
+            const btn = $("btn-pay"); btn.disabled = true;
+            try {
+                const { order } = await RAISECloud.call("checkout", {
+                    items: cart.map(i => ({ barcode: i.barcode, qty: i.qty, price: i.price, title: i.title })),
+                    customer_id: user && user.customerId ? user.customerId : null
+                });
+                currentOrder = order;
+                amt = Number(order.total);   // the server's price list is authoritative
+            } catch (e) {
+                UI.toast(e.message + " Continuing offline.", "warn");
+            } finally { btn.disabled = false; }
+        }
         $("pay-amt").textContent = UI.inr(amt);
-        $("pay-vpa").textContent = "Paying " + MERCHANT_VPA;
-        const upi = `upi://pay?pa=${encodeURIComponent(MERCHANT_VPA)}&pn=${encodeURIComponent(MERCHANT_NAME)}&am=${amt.toFixed(2)}&cu=INR&tn=${encodeURIComponent("RAISE order")}`;
+        $("pay-vpa").textContent = (currentOrder ? `Order #${currentOrder.number} · ` : "") + "Paying " + MERCHANT_VPA;
+        const note = currentOrder ? `RAISE order ${currentOrder.number}` : "RAISE order";
+        const upi = `upi://pay?pa=${encodeURIComponent(MERCHANT_VPA)}&pn=${encodeURIComponent(MERCHANT_NAME)}&am=${amt.toFixed(2)}&cu=INR&tn=${encodeURIComponent(note)}`;
         $("upi-qr").innerHTML = "";
         new QRCode($("upi-qr"), { text: upi, width: 200, height: 200, correctLevel: QRCode.CorrectLevel.H, colorDark: "#141813" });
         setStage("pay");
     };
-    $("btn-back").onclick = () => setStage("scan");
-    $("btn-demo-paid").onclick = () => {
-        const order = "RS-" + Math.floor(100000 + Math.random() * 900000);
-        $("paid-order").textContent = order;
-        $("paid-amt").textContent = UI.inr(total());
+    $("btn-back").onclick = () => {
+        if (currentOrder) RAISECloud.call("cancel", { order_id: currentOrder.id }).catch(() => {});
+        currentOrder = null;
+        setStage("scan");
+    };
+    $("btn-demo-paid").onclick = async () => {
+        let number = "RS-" + Math.floor(100000 + Math.random() * 900000), amount = total(), points = 0;
+        if (currentOrder) {
+            try {
+                const r = await RAISECloud.call("paid", { order_id: currentOrder.id });
+                number = "#" + r.order.number; amount = Number(r.order.total); points = r.points || 0;
+                if (user && user.cloud && r.balance != null) user.points = r.balance;
+            } catch (e) { UI.toast(e.message, "warn"); return; }
+            currentOrder = null;
+        }
+        $("paid-order").textContent = number;
+        $("paid-amt").textContent = UI.inr(amount);
         $("paid-name").textContent = user ? user.name : "Guest";
+        $("paid-points-l").hidden = $("paid-points").hidden = !points;
+        $("paid-points").textContent = `+${points} (now ${user && user.points != null ? user.points : points})`;
         $("paid-seal").innerHTML = UI.sealSVG(148);
         setStage("paid");
         UI.stampSeal($("paid-seal").querySelector(".seal"));
@@ -845,8 +927,11 @@
         showAttract();
     }
 
-    $("quick").innerHTML = RAISECatalog.CATALOG.map(p =>
-        `<button type="button" data-code="${UI.esc(p.barcode)}" title="${UI.esc(p.barcode)}"><img src="${UI.esc(p.image)}" alt="" onerror="this.remove()">${UI.esc(p.title.replace(/\s*\(.*\)$/, ""))}</button>`).join("");
+    function drawQuick() {
+        $("quick").innerHTML = RAISECatalog.CATALOG.map(p =>
+            `<button type="button" data-code="${UI.esc(p.barcode)}" title="${UI.esc(p.barcode)}"><img src="${UI.esc(p.image)}" alt="" onerror="this.remove()">${UI.esc(p.title.replace(/\s*\(.*\)$/, ""))}</button>`).join("");
+    }
+    drawQuick();
     $("quick").onclick = e => { const b = e.target.closest("button"); if (b) addByBarcode(b.dataset.code); };
 
     function setupFocus() {
@@ -888,6 +973,23 @@
     // handlers, so an NFC tap or item scan works straight from the attract screen.
     document.addEventListener("keydown", () => { leaveAttract(); armAttract(); }, true);
     document.addEventListener("pointerdown", () => armAttract(), true);
+
+    // ---------- Store server ----------
+    let nfcSeen = false;
+    RAISECloud.loadCatalog().then(applied => {
+        if (!applied) return;
+        drawQuick();
+        if (scanner.worker) scanner.worker.setCatalog(RAISECatalog.CATALOG.map(p => p.barcode));  // blurry-barcode matcher
+    });
+    RAISECloud.startHeartbeat(() => {
+        const v = $("video");
+        return {
+            stage: stage === "pass" ? (attractShown() ? "attract" : "identify") : stage,
+            camera: scanner.track ? scanner.track.label.replace(/\s*\([0-9a-f:]+\)$/i, "") : "none",
+            resolution: v.videoWidth ? `${v.videoWidth}×${v.videoHeight}` : "",
+            nfc: nfcSeen
+        };
+    });
 
     setStage("pass");
     showAttract();

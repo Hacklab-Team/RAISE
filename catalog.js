@@ -93,5 +93,16 @@
 
     const isListed = code => !!findInCatalog(code);
 
-    global.RAISECatalog = { CATALOG, DEFAULT_PRICE, lookupProduct, isListed };
+    // The cloud catalog (cloud.js) replaces the built-in list in place, so every reference to
+    // CATALOG stays valid. The built-in list above is the offline fallback.
+    function replaceCatalog(products) {
+        if (!Array.isArray(products) || !products.length) return false;
+        CATALOG.length = 0;
+        products.forEach(p => CATALOG.push(p));
+        byCode.clear();
+        CATALOG.forEach(p => byCode.set(p.barcode, p));
+        return true;
+    }
+
+    global.RAISECatalog = { CATALOG, DEFAULT_PRICE, lookupProduct, isListed, replaceCatalog };
 })(window);

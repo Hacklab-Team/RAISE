@@ -117,18 +117,37 @@
         el.classList.add("is-drawn");
     }
 
-    function beep(freq = 1046, ms = 90) {
+    // GPIO buzzer on a Raspberry Pi kiosk (kiosk/buzzer-bridge.py). Switched on by opening the
+    // kiosk once with ?buzzer=1 (setup-buzzer.sh adds it to the launcher); ?buzzer=0 turns it off.
+    // Off by default, so ordinary browsers never try to reach the local service.
+    const BUZZER_URL = "http://127.0.0.1:8799/beep";
+    let buzzerOn = false;
+    try {
+        const flag = new URLSearchParams(global.location.search).get("buzzer");
+        if (flag === "1") localStorage.setItem("raise_buzzer", "1");
+        if (flag === "0") localStorage.removeItem("raise_buzzer");
+        buzzerOn = localStorage.getItem("raise_buzzer") === "1";
+    } catch (e) { /* storage blocked */ }
+
+    // freq Hz, ms per beep, times = number of beeps (login uses a double beep).
+    function beep(freq = 1046, ms = 90, times = 1) {
+        if (buzzerOn) {
+            fetch(`${BUZZER_URL}?f=${freq}&ms=${ms}&n=${times}`, { cache: "no-store" }).catch(() => {});
+        }
         try {
             const ctx = beep.ctx || (beep.ctx = new (global.AudioContext || global.webkitAudioContext)());
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = "sine";
-            osc.frequency.value = freq;
-            gain.gain.setValueAtTime(0.18, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + ms / 1000);
-            osc.connect(gain).connect(ctx.destination);
-            osc.start();
-            osc.stop(ctx.currentTime + ms / 1000);
+            for (let i = 0; i < times; i++) {
+                const t0 = ctx.currentTime + i * (ms + 70) / 1000;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = "sine";
+                osc.frequency.value = freq;
+                gain.gain.setValueAtTime(0.18, t0);
+                gain.gain.exponentialRampToValueAtTime(0.001, t0 + ms / 1000);
+                osc.connect(gain).connect(ctx.destination);
+                osc.start(t0);
+                osc.stop(t0 + ms / 1000);
+            }
         } catch (e) { /* audio unavailable */ }
     }
 
