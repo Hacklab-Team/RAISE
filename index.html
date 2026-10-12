@@ -40,8 +40,9 @@
         .holder { display: flex; align-items: center; gap: var(--s2); height: 36px; padding: 0 var(--s3); border: 1px solid var(--band-line); border-radius: var(--r-md); background: var(--band-2); font-size: var(--t-sm); }
         .holder .icon { color: #3fbf9b; }
         .holder .pid { font-family: var(--mono); font-size: 11px; color: var(--band-mute); }
-        .holder .link-card { margin-left: var(--s1); height: 26px; padding: 0 var(--s2); border: 1px solid var(--band-line); border-radius: var(--r-sm); background: transparent; color: var(--band-ink); font-size: var(--t-xs); font-weight: 600; cursor: pointer; }
-        .holder .link-card:hover { background: var(--band); }
+        button.holder { color: var(--band-ink); font: inherit; font-size: var(--t-sm); cursor: pointer; }
+        button.holder:hover { border-color: #4a6358; background: #22362e; }
+        .holder .chev { width: 14px; height: 14px; color: var(--band-mute); margin-left: 2px; }
         .holder .nfc-state { margin-left: var(--s1); font-size: var(--t-xs); color: #3fbf9b; }
 
         /* Main two-pane */
@@ -166,6 +167,29 @@
             .cam { max-height: none; }
         }
 
+        /* Account menu (customer taps their name in the header) */
+        dialog.acct { width: min(560px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); color: var(--ink); box-shadow: var(--shadow-float); }
+        dialog.acct::backdrop { background: rgba(11, 18, 15, .55); }
+        .acct-head { display: flex; align-items: center; gap: var(--s3); padding: var(--s4) var(--s5); background: var(--band); color: var(--band-ink); }
+        .acct-head .icon { color: #3fbf9b; width: 22px; height: 22px; }
+        .acct-head h2 { font-size: var(--t-lg); font-weight: 700; }
+        .acct-head .pid { font-family: var(--mono); font-size: var(--t-xs); color: var(--band-mute); }
+        .acct-head .icon-btn { margin-left: auto; color: var(--band-mute); }
+        .acct-head .icon-btn:hover { background: var(--band-2); color: var(--band-ink); }
+        .acct-body { display: grid; grid-template-columns: auto 1fr; gap: var(--s5); padding: var(--s5); align-items: start; }
+        .acct-qr { padding: 10px; background: #fff; border: 1px solid var(--line); border-radius: var(--r-sm); }
+        .acct-qr canvas { display: none !important; }
+        .acct-qr img { display: block; width: 180px; height: 180px; image-rendering: pixelated; }
+        .acct-info h3 { font-size: var(--t-md); font-weight: 650; }
+        .acct-info p { font-size: var(--t-sm); color: var(--mute); margin-top: var(--s2); }
+        .acct-info ol { margin: var(--s2) 0 0; padding-left: 18px; font-size: var(--t-sm); color: var(--ink-2); }
+        .acct-stats { display: flex; gap: var(--s5); margin-top: var(--s4); padding-top: var(--s3); border-top: 1px solid var(--line); }
+        .acct-stats dt { font-size: var(--t-xs); color: var(--mute); }
+        .acct-stats dd { margin: 2px 0 0; font-family: var(--mono); font-weight: 600; }
+        .acct-foot { display: flex; gap: var(--s2); padding: var(--s3) var(--s5); border-top: 1px solid var(--line); background: var(--paper); }
+        .acct-foot .grow { flex: 1; }
+        @media (max-width: 560px) { .acct-body { grid-template-columns: 1fr; justify-items: center; } }
+
         /* Link a card */
         .link-steps { display: flex; flex-direction: column; gap: var(--s4); }
         .link-track { display: grid; grid-template-columns: repeat(3, 1fr); margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; }
@@ -229,7 +253,7 @@
             <li id="step-2"><span class="n">2</span>Scan items</li>
             <li id="step-3"><span class="n">3</span>Pay</li>
         </ol>
-        <div class="holder" id="holder" hidden></div>
+        <button class="holder" id="holder" type="button" hidden aria-haspopup="dialog" title="Your account"></button>
         <button class="theme-btn" id="theme-btn" type="button"></button>
     </header>
 
@@ -390,6 +414,8 @@
     </div>
     <p class="attract-cta">Touch the screen to scan your pass</p>
 </div>
+
+<dialog class="acct" id="acct" aria-label="Your account"></dialog>
 
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
@@ -569,21 +595,75 @@
         setTimeout(() => stage === "verified" && setStage("scan"), 1700);
     }
 
+    const userHasCard = u => u.cloud ? !!u.hasCard : Object.values(nfcCards()).some(c => c.id === u.id);
+
     function renderHolder() {
         const h = $("holder");
         if (!user) { h.hidden = true; return; }
         h.hidden = false;
-        if (!user.id) { h.innerHTML = UI.icon("user") + "<span>Guest</span>"; return; }
-        const linked = user.cloud ? user.hasCard : Object.values(nfcCards()).some(c => c.id === user.id);
-        const canLink = !user.cloud || !!user.token;   // linking needs the pass token
-        const action = linked
-            ? `<span class="nfc-state">NFC card linked</span>`
-            : canLink ? `<button class="link-card" id="btn-link-card" type="button">${nfcLink ? "Tap card…" : "Link NFC card"}</button>` : "";
+        const chev = UI.icon("arrow-right", "chev");
+        if (!user.id) { h.innerHTML = UI.icon("user") + "<span>Guest</span>" + chev; return; }
         const pts = user.cloud ? ` · ${user.points} pts` : "";
-        h.innerHTML = UI.icon("shield") + `<span>${UI.esc(user.name)}</span><span class="pid">${UI.esc(RAISEPass.formatPassId(user.id))}${pts}</span>${action}`;
-        const b = $("btn-link-card");
-        if (b) b.onclick = () => nfcLink ? cancelNfcLink() : startNfcLink(user, renderHolder);
+        const state = nfcLink ? `<span class="nfc-state">Tap card…</span>` : userHasCard(user) ? `<span class="nfc-state">Card</span>` : "";
+        h.innerHTML = UI.icon("shield") + `<span>${UI.esc(user.name)}</span><span class="pid">${UI.esc(RAISEPass.formatPassId(user.id))}${pts}</span>${state}${chev}`;
     }
+
+    // ---------- Account menu ----------
+    // Shows the customer's pass QR (e.g. to claim a kiosk-made pass in the RAISE app), their points
+    // and card, and lets them link/replace a card or log out (clears the bill).
+    function openAccount() {
+        if (!user) return;
+        const d = $("acct");
+        const items = count();
+        const logoutLabel = items ? `Log out and clear bill (${items} item${items > 1 ? "s" : ""})` : "Log out";
+        if (!user.id) {
+            d.innerHTML = `
+              <div class="acct-head">${UI.icon("user")}<div><h2>Shopping as a guest</h2></div><button class="icon-btn" data-close type="button" aria-label="Close">${UI.icon("x")}</button></div>
+              <div class="acct-body" style="grid-template-columns:1fr"><div class="acct-info">
+                <h3>Collect points on this bill</h3>
+                <p>Tap your RAISE card on the reader, or scan your pass QR, before you pay. Your items stay in the bill.</p>
+              </div></div>
+              <div class="acct-foot"><button class="btn btn--danger" id="acct-logout" type="button">${UI.icon("log-out")} ${logoutLabel}</button><span class="grow"></span><button class="btn" data-close type="button">Close</button></div>`;
+        } else {
+            const claimable = user.token && user.token.startsWith("RAISE2.");
+            const hasCard = userHasCard(user);
+            d.innerHTML = `
+              <div class="acct-head">${UI.icon("shield")}<div><h2>${UI.esc(user.name)}</h2><span class="pid">Pass ${UI.esc(RAISEPass.formatPassId(user.id))}</span></div><button class="icon-btn" data-close type="button" aria-label="Close">${UI.icon("x")}</button></div>
+              <div class="acct-body">
+                ${claimable ? `<div class="acct-qr" id="acct-qr"></div>` : ""}
+                <div class="acct-info">
+                  ${claimable ? `<h3>Your RAISE Pass</h3>
+                    <p>Use it to log in here, or add it to the RAISE app to see your points and receipts on your phone:</p>
+                    <ol><li>Open the RAISE app and sign in</li><li>Account → Claim a kiosk pass</li><li>Scan this QR</li></ol>`
+                  : `<h3>Your RAISE Pass</h3><p>${user.cloud ? "Scan your pass QR once to show it here." : "This is an older pass. Get a new one in the RAISE app to collect points."}</p>`}
+                  <dl class="acct-stats">
+                    ${user.cloud ? `<div><dt>Points</dt><dd>${user.points}</dd></div>` : ""}
+                    <div><dt>NFC card</dt><dd>${hasCard ? "Linked" : "None"}</dd></div>
+                    <div><dt>This bill</dt><dd>${UI.inr(total())}</dd></div>
+                  </dl>
+                </div>
+              </div>
+              <div class="acct-foot">
+                ${user.token ? `<button class="btn" id="acct-card" type="button">${UI.icon("nfc")} ${hasCard ? "Replace card" : "Link a card"}</button>` : ""}
+                <span class="grow"></span>
+                <button class="btn btn--danger" id="acct-logout" type="button">${UI.icon("log-out")} ${logoutLabel}</button>
+              </div>`;
+            if (claimable) new QRCode($("acct-qr"), { text: user.token, width: 360, height: 360, correctLevel: QRCode.CorrectLevel.M });
+            const cardBtn = $("acct-card");
+            if (cardBtn) cardBtn.onclick = () => { d.close(); startNfcLink(user, state => { if (state === "linked" && user) user.hasCard = true; renderHolder(); }); };
+        }
+        $("acct-logout").onclick = () => {
+            if (items && !confirm(`Log out and remove the ${items} item${items > 1 ? "s" : ""} in your bill?`)) return;
+            d.close();
+            UI.toast(user && user.id ? `Logged out. See you soon, ${user.name.split(" ")[0]}!` : "Bill cleared");
+            reset();
+        };
+        d.showModal();
+    }
+    $("holder").onclick = openAccount;
+    $("acct").addEventListener("click", e => {
+        if (e.target === $("acct") || e.target.closest("[data-close]")) $("acct").close();
+    });
 
     // ---------- NFC cards ----------
     // The GPIO NFC reader (kiosk/nfc-bridge.py) types "nfc-<uid>" + Enter like a keyboard.
@@ -603,7 +683,7 @@
         linkBuf = "";
         if (document.activeElement) document.activeElement.blur();
         clearTimeout(nfcLinkTimer);
-        nfcLinkTimer = setTimeout(() => { cancelNfcLink(); UI.toast("No card tapped. Try Link NFC card again.", "warn"); }, 30000);
+        nfcLinkTimer = setTimeout(() => { cancelNfcLink(); UI.toast("No card tapped. Open your account to try again.", "warn"); }, 30000);
         UI.toast("Tap the NFC card on the reader", "busy");
         onUpdate && onUpdate("waiting");
     }
@@ -661,9 +741,9 @@
         // attach orders and points to the right customer.
         if (RAISECloud.enabled) {
             try {
-                const { customer } = await RAISECloud.call("identify", { card: key });
+                const { customer, token } = await RAISECloud.call("identify", { card: key });
                 UI.beep(1568, 70, 2);   // login: double beep
-                return verified(cloudUser(customer, null));
+                return verified(cloudUser(customer, token || null));
             } catch (e) {
                 if (!(e.status === 0 && entry)) {
                     UI.beep(330, 160);
@@ -1040,6 +1120,7 @@
         cart = []; user = null; lastIssued = null;
         cancelNfcLink();
         linkUser = null; linkStep = "scan";
+        if ($("acct").open) $("acct").close();
         $("holder").hidden = true;
         $("last").className = "last"; $("last").innerHTML = `<span class="thumb">${UI.icon("barcode")}</span><span>Last scanned item appears here.</span>`;
         $("reg-form").reset();
